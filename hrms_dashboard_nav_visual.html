@@ -2116,6 +2116,12 @@
       overscroll-behavior-x: contain;
     }
 
+    .entity-table-wrap[hidden],
+    .entity-table-wrap.is-empty {
+      display: none;
+      overflow: hidden;
+    }
+
     .entity-table {
       width: 100%;
       min-width: 980px;
@@ -8592,6 +8598,7 @@
         </tr>
       `).join("");
       $("#entityTableContainer").hidden = records.length === 0;
+      $("#entityTableContainer").classList.toggle("is-empty", records.length === 0);
       $("#entityEmptyState").classList.toggle("is-visible", records.length === 0);
       $("#entityTableCount").textContent = `Showing ${records.length} of ${pageConfig["entity-master"].rows.length} entity records`;
       refreshIcons();
