@@ -10202,6 +10202,7 @@
       $$("[data-entity-field]").forEach(field => {
         field.value = record[field.dataset.entityField] ?? "";
       });
+      syncEntityPanFromGstin(false);
       populateEntityRoleMasterOptions();
       resetEntityAccessFields();
       const accessRecord = entityMasterDetails[record.entity_id] || {};
@@ -10278,10 +10279,33 @@
     }
 
     function collectEntityFormRecord() {
+      syncEntityPanFromGstin(false);
       return $$("[data-entity-field]").reduce((record, field) => {
         record[field.dataset.entityField] = field.value.trim();
         return record;
       }, emptyEntityRecord());
+    }
+
+    function panFromGstin(gstin) {
+      const normalized = String(gstin || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return normalized.length >= 12 ? normalized.slice(2, 12) : "";
+    }
+
+    function syncEntityPanFromGstin(showHint = true) {
+      const gstinField = $('[data-entity-field="gstin"]');
+      const panField = $('[data-entity-field="pan_number"]');
+      if (!gstinField || !panField) return "";
+
+      const normalizedGstin = gstinField.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (gstinField.value !== normalizedGstin) gstinField.value = normalizedGstin;
+
+      const derivedPan = panFromGstin(normalizedGstin);
+      if (derivedPan) {
+        panField.value = derivedPan;
+        panField.removeAttribute("aria-invalid");
+        if (showHint) showToast(`PAN fetched from GSTIN: ${derivedPan}`);
+      }
+      return derivedPan;
     }
 
     function collectEntityAccessRecord() {
@@ -11519,10 +11543,12 @@
       field.addEventListener("input", () => {
         field.removeAttribute("aria-invalid");
         $("#entityFormError").classList.remove("is-visible");
+        if (field.dataset.entityField === "gstin") syncEntityPanFromGstin(false);
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
         if (field.dataset.entityField === "entity_role") updateEntityAccessState();
+        if (field.dataset.entityField === "gstin") syncEntityPanFromGstin();
       });
     });
     $("#entityForm").addEventListener("submit", event => {
