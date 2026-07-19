@@ -7379,7 +7379,7 @@
     const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
     const hrmsMockApi = {
       baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
-      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "state_masters", "pincode_masters"]
+      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "state_masters", "pincode_masters", "city_masters"]
     };
     const defaultStateMasters = [
       ["01", "Jammu and Kashmir"], ["02", "Himachal Pradesh"], ["03", "Punjab"], ["04", "Chandigarh"],
@@ -7399,6 +7399,30 @@
       status: "Active"
     }));
     let stateMasters = [...defaultStateMasters];
+    const defaultWestBengalCityMasters = [
+      ["Alipurduar", "Alipurduar"], ["Asansol", "Paschim Bardhaman"], ["Baharampur", "Murshidabad"],
+      ["Balurghat", "Dakshin Dinajpur"], ["Bankura", "Bankura"], ["Barasat", "North 24 Parganas"],
+      ["Bardhaman", "Purba Bardhaman"], ["Berhampore", "Murshidabad"], ["Bishnupur", "Bankura"],
+      ["Bolpur", "Birbhum"], ["Cooch Behar", "Cooch Behar"], ["Darjeeling", "Darjeeling"],
+      ["Digha", "Purba Medinipur"], ["Durgapur", "Paschim Bardhaman"], ["English Bazar", "Malda"],
+      ["Haldia", "Purba Medinipur"], ["Howrah", "Howrah"], ["Jalpaiguri", "Jalpaiguri"],
+      ["Jhargram", "Jhargram"], ["Kalimpong", "Kalimpong"], ["Kalyani", "Nadia"],
+      ["Kharagpur", "Paschim Medinipur"], ["Kolkata", "Kolkata"], ["Krishnanagar", "Nadia"],
+      ["Malda", "Malda"], ["Medinipur", "Paschim Medinipur"], ["Newtown", "North 24 Parganas"],
+      ["Purulia", "Purulia"], ["Raiganj", "Uttar Dinajpur"], ["Rajarhat", "North 24 Parganas"],
+      ["Rampurhat", "Birbhum"], ["Serampore", "Hooghly"], ["Siliguri", "Darjeeling"],
+      ["Suri", "Birbhum"], ["Tamluk", "Purba Medinipur"]
+    ];
+    const defaultCityMasters = defaultWestBengalCityMasters.map(([city, district]) => ({
+      city_id: `WB-${city.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+      city,
+      district,
+      state_name: "West Bengal",
+      gst_state_code: "19",
+      country: "India",
+      status: "Active"
+    }));
+    let cityMasters = [...defaultCityMasters];
     const defaultPincodeMasters = [
       ["700029", "Kolkata", "West Bengal"],
       ["700045", "Kolkata", "West Bengal"],
@@ -7497,6 +7521,28 @@
       return pincodeMasters.filter(record => record.status !== "Inactive");
     }
 
+    function normalizeCityMaster(record = {}) {
+      const city = String(record.city || record.city_name || record.district || "").trim();
+      const district = String(record.district || city).trim();
+      const stateName = String(record.state_name || record.state || "").trim();
+      const stateMaster = stateMasterByName(stateName);
+      const gstStateCode = String(record.gst_state_code || stateMaster?.gst_state_code || "").trim().padStart(2, "0");
+      if (!city || !stateName) return null;
+      return {
+        city_id: String(record.city_id || `${gstStateCode || stateName}-${city}`).trim(),
+        city,
+        district,
+        state_name: stateName,
+        gst_state_code: gstStateCode,
+        country: record.country || "India",
+        status: record.status || "Active"
+      };
+    }
+
+    function activeCityMasters() {
+      return cityMasters.filter(record => record.status !== "Inactive");
+    }
+
     function pincodeMasterByPincode(pincode) {
       const normalized = String(pincode || "").replace(/\D/g, "");
       return activePincodeMasters().find(record => record.pincode === normalized) || null;
@@ -7506,7 +7552,10 @@
       const normalizedState = String(stateName || "").trim().toLowerCase();
       if (!normalizedState) return [];
       const seen = new Set();
-      return activePincodeMasters()
+      const source = activeCityMasters().some(record => record.state_name.toLowerCase() === normalizedState)
+        ? activeCityMasters()
+        : activePincodeMasters();
+      return source
         .filter(record => record.state_name.toLowerCase() === normalizedState)
         .filter(record => {
           const key = `${record.city.toLowerCase()}|${record.state_name.toLowerCase()}`;
@@ -7578,6 +7627,8 @@
       stateMasters = reserveStateMasters.length ? reserveStateMasters : [...defaultStateMasters];
       const reservePincodeMasters = (data.pincode_masters || []).map(normalizePincodeMaster).filter(Boolean);
       pincodeMasters = reservePincodeMasters.length ? reservePincodeMasters : [...defaultPincodeMasters];
+      const reserveCityMasters = (data.city_masters || []).map(normalizeCityMaster).filter(Boolean);
+      cityMasters = reserveCityMasters.length ? reserveCityMasters : [...defaultCityMasters];
       populateStateMasterSelects();
 
       (data.entities || []).forEach(entity => {
@@ -7740,6 +7791,15 @@
         pincode_masters: pincodeMasters.map(record => ({
           pincode: record.pincode,
           city: record.city,
+          state_name: record.state_name,
+          gst_state_code: record.gst_state_code,
+          country: record.country || "India",
+          status: record.status || "Active"
+        })),
+        city_masters: cityMasters.map(record => ({
+          city_id: record.city_id,
+          city: record.city,
+          district: record.district || record.city,
           state_name: record.state_name,
           gst_state_code: record.gst_state_code,
           country: record.country || "India",

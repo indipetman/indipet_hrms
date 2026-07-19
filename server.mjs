@@ -47,6 +47,10 @@ const tableConfig = {
   pincode_masters: {
     key: "pincode",
     headers: ["pincode", "city", "state_name", "gst_state_code", "country", "status"]
+  },
+  city_masters: {
+    key: "city_id",
+    headers: ["city_id", "city", "district", "state_name", "gst_state_code", "country", "status"]
   }
 };
 
