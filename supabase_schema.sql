@@ -535,9 +535,72 @@ CREATE TABLE public.parent_entity (
   commission_on_products numeric,
   commission_on_services numeric,
   status character varying,
-  entity_role text,
-  CONSTRAINT parent_entity_pkey PRIMARY KEY (entity_id)
+  entity_role text NOT NULL DEFAULT 'Franchisee',
+  CONSTRAINT parent_entity_pkey PRIMARY KEY (entity_id),
+  CONSTRAINT parent_entity_role_check CHECK (entity_role IN ('Primary', 'Franchisee'))
 );
+CREATE UNIQUE INDEX parent_entity_single_primary_uq
+  ON public.parent_entity ((lower(entity_role)))
+  WHERE lower(entity_role) = 'primary';
+CREATE OR REPLACE FUNCTION public.enforce_parent_entity_role_rules()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.entity_role = 'Primary'
+      AND EXISTS (
+        SELECT 1
+        FROM public.parent_entity
+        WHERE entity_id <> OLD.entity_id
+          AND entity_role = 'Franchisee'
+      )
+    THEN
+      RAISE EXCEPTION 'Cannot delete the Primary Entity while Franchisee entities are registered under it.';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  NEW.entity_role := CASE lower(trim(coalesce(NEW.entity_role, '')))
+    WHEN 'primary' THEN 'Primary'
+    WHEN 'franchisee' THEN 'Franchisee'
+    WHEN 'franchaisee' THEN 'Franchisee'
+    ELSE ''
+  END;
+
+  IF NEW.entity_role NOT IN ('Primary', 'Franchisee') THEN
+    RAISE EXCEPTION 'Entity Role must be either Primary or Franchisee.';
+  END IF;
+
+  IF NEW.entity_role = 'Primary'
+    AND EXISTS (
+      SELECT 1
+      FROM public.parent_entity
+      WHERE entity_id <> coalesce(NEW.entity_id, -1)
+        AND entity_role = 'Primary'
+    )
+  THEN
+    RAISE EXCEPTION 'Only one Primary Entity can exist in HRMS.';
+  END IF;
+
+  IF NEW.entity_role = 'Franchisee'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.parent_entity
+      WHERE entity_id <> coalesce(NEW.entity_id, -1)
+        AND entity_role = 'Primary'
+    )
+  THEN
+    RAISE EXCEPTION 'Create the Primary Entity first. Franchisee entities can be added after the Primary Entity exists.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_parent_entity_role_rules
+BEFORE INSERT OR UPDATE OF entity_role OR DELETE ON public.parent_entity
+FOR EACH ROW
+EXECUTE FUNCTION public.enforce_parent_entity_role_rules();
 CREATE TABLE public.payroll_compliance (
   compliance_id integer NOT NULL DEFAULT nextval('payroll_compliance_compliance_id_seq'::regclass),
   payroll_run_id integer,

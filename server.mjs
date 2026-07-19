@@ -64,6 +64,54 @@ const tableConfig = {
 
 const seedData = Object.fromEntries(Object.keys(tableConfig).map(tableName => [tableName, []]));
 
+const normalizeEntityRole = value => {
+  const role = String(value || "").trim().toLowerCase();
+  if (role === "primary") return "Primary";
+  if (role === "franchisee" || role === "franchaisee") return "Franchisee";
+  return "";
+};
+
+const hasEntityIdentity = row => Boolean(
+  String(row.entity_id || "").trim()
+  || String(row.legal_name || "").trim()
+  || String(row.entity_role || "").trim()
+);
+
+const validateEntityRows = rows => {
+  const normalizedRows = rows.map(row => ({
+    ...row,
+    entity_role: normalizeEntityRole(row.entity_role)
+  }));
+  const entityRows = normalizedRows.filter(hasEntityIdentity);
+  const invalidRole = entityRows.find(row => !row.entity_role);
+  if (invalidRole) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Entity Role must be either Primary or Franchisee."
+    };
+  }
+
+  const primaryRows = entityRows.filter(row => row.entity_role === "Primary");
+  if (primaryRows.length > 1) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Only one Primary Entity can exist in HRMS. Add Franchisee entities after the Primary Entity."
+    };
+  }
+
+  if (entityRows.length && primaryRows.length === 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Create the Primary Entity first. Franchisee entities can be added after the Primary Entity exists."
+    };
+  }
+
+  return { ok: true, rows: normalizedRows };
+};
+
 const serializeRecord = (record, headers) => Object.fromEntries(headers.map(header => {
   const value = record[header];
   if (Array.isArray(value) || (value && typeof value === "object")) return [header, JSON.stringify(value)];
@@ -189,7 +237,13 @@ http.createServer(async (request, response) => {
       if (request.method === "PUT") {
         const rows = await readBody(request);
         if (!Array.isArray(rows)) return sendJson(response, 400, { error: "Expected an array of records" });
-        writeTable(tableName, rows.map(normalizeRecord));
+        let nextRows = rows.map(normalizeRecord);
+        if (tableName === "entities") {
+          const validation = validateEntityRows(nextRows);
+          if (!validation.ok) return sendJson(response, validation.status, { error: validation.error });
+          nextRows = validation.rows;
+        }
+        writeTable(tableName, nextRows);
         sendJson(response, 200, { ok: true, table: tableName, count: rows.length });
         return;
       }

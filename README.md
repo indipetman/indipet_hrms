@@ -22,3 +22,5 @@ npm run mock:server
 ```
 
 Then open `http://localhost:4318/hrms_dashboard_nav_visual.html`. If the server is offline, the UI falls back to browser storage so testing can continue locally.
+
+Entity setup follows the registered-company model: create exactly one Primary Entity first, then add Franchisee entities under it. The local mock server and schema both reject duplicate Primary records or Franchisee-only entity data.

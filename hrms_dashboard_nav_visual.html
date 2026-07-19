@@ -7412,6 +7412,13 @@
       ];
     }
 
+    function normalizeEntityRole(value) {
+      const role = String(value || "").trim().toLowerCase();
+      if (role === "primary") return "Primary";
+      if (role === "franchisee" || role === "franchaisee") return "Franchisee";
+      return "";
+    }
+
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, character => ({
         "&": "&amp;",
@@ -7546,7 +7553,7 @@
           entity_id: row[0],
           legal_name: row[1],
           entity_type: row[2],
-          entity_role: row[3],
+          entity_role: normalizeEntityRole(row[3]),
           status: row[4],
           mapped_locations: mappedLocations.length,
           mapped_location_names: mappedLocations.map(location => location.listName),
@@ -8051,7 +8058,8 @@
 
       (data.entities || []).forEach(entity => {
         if (!entity.entity_id) return;
-        const entityRole = entity.entity_role === "HQ" || entity.entity_role === "Branch" ? "Primary" : entity.entity_role || "";
+        const entityRole = normalizeEntityRole(entity.entity_role);
+        if (!entityRole) return;
         pageConfig["entity-master"].rows.push([
           entity.entity_id,
           entity.legal_name || "",
@@ -8261,11 +8269,13 @@
       const snapshot = hrmsReserveSnapshot();
       saveHrmsReserveToBrowser(snapshot);
       try {
-        await Promise.all(hrmsMockApi.tables.map(table => fetch(`${hrmsMockApi.baseUrl}/${table}`, {
+        const responses = await Promise.all(hrmsMockApi.tables.map(table => fetch(`${hrmsMockApi.baseUrl}/${table}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(snapshot[table] || [])
         })));
+        const failedResponse = responses.find(response => !response.ok);
+        if (failedResponse) throw new Error(`HRMS reserve save failed with ${failedResponse.status}`);
         return "excel";
       } catch {
         return "browser";
@@ -11037,6 +11047,7 @@
           : record[field.dataset.entityField] ?? "";
         field.value = value;
       });
+      syncEntityRoleOptions();
       if (record.state && !stateMasterByName(record.state)) {
         const stateField = $('[data-entity-field="state"]');
         if (stateField) {
@@ -11060,6 +11071,35 @@
       updateEntityAdminContactState();
       renderEntityLinkedLocations();
       setEntityStep(0);
+    }
+
+    function syncEntityRoleOptions() {
+      const roleField = $('[data-entity-field="entity_role"]');
+      if (!roleField) return;
+
+      const currentRole = normalizeEntityRole(roleField.value);
+      const existingPrimary = primaryEntityRecord();
+      const editingPrimary = Boolean(entityFormMode !== "create" && activeEntityRecordId && existingPrimary?.entity_id === activeEntityRecordId);
+      const creatingFirstEntity = entityFormMode === "create" && !existingPrimary;
+      const canSelectPrimary = !existingPrimary || editingPrimary;
+
+      roleField.replaceChildren(new Option("Select entity role", ""));
+      if (canSelectPrimary) roleField.add(new Option("Primary", "Primary"));
+      if (!creatingFirstEntity) roleField.add(new Option("Franchisee", "Franchisee"));
+
+      if (currentRole === "Primary" && canSelectPrimary) {
+        roleField.value = "Primary";
+      } else if (currentRole === "Franchisee") {
+        roleField.value = "Franchisee";
+      } else if (entityFormMode === "create" && existingPrimary) {
+        roleField.value = "Franchisee";
+      } else if (creatingFirstEntity) {
+        roleField.value = "Primary";
+      } else {
+        roleField.value = "";
+      }
+
+      roleField.disabled = editingPrimary || entityFormMode === "view";
     }
 
     function populateEntityRoleMasterOptions() {
@@ -11164,9 +11204,12 @@
       syncEntityPanFromGstin(false);
       syncEntityStateCode();
       return $$("[data-entity-field]").reduce((record, field) => {
-        record[field.dataset.entityField] = field.dataset.entityField === "country"
+        const key = field.dataset.entityField;
+        record[key] = key === "country"
           ? field.value.trim() || defaultCountryName()
-          : field.value.trim();
+          : key === "entity_role"
+            ? normalizeEntityRole(field.value)
+            : field.value.trim();
         return record;
       }, emptyEntityRecord());
     }
@@ -11326,6 +11369,7 @@
       $$("[data-entity-field], [data-entity-access-field]").forEach(field => {
         field.disabled = isReadOnly;
       });
+      if (!isReadOnly) syncEntityRoleOptions();
       $("#entityAccessFieldset").disabled = isReadOnly || !entityLoginAccessRequired();
       $("#submitEntityForm").disabled = isReadOnly;
     }
@@ -11371,7 +11415,8 @@
       $("#entityFormView").classList.remove("is-active");
       $("#moduleView").classList.remove("is-active");
       $("#entityFormView").classList.add("is-active");
-      const record = mode === "create" ? { ...emptyEntityRecord(), ...(seedRecord || {}) } : entityRecordById(entityId);
+      const createDefaults = mode === "create" && hasPrimaryEntity() ? { entity_role: "Franchisee" } : {};
+      const record = mode === "create" ? { ...emptyEntityRecord(), ...createDefaults, ...(seedRecord || {}) } : entityRecordById(entityId);
       setEntityFormHeader(mode, record);
       populateEntityForm(record || emptyEntityRecord());
       setEntityFormReadOnly(mode === "view");
@@ -11427,6 +11472,21 @@
       }
 
       const existingPrimary = primaryEntityRecord();
+      const projectedRows = pageConfig["entity-master"].rows
+        .map(row => row[0] === activeEntityRecordId ? [row[0], record.legal_name, record.entity_type, record.entity_role, record.status] : row);
+      if (entityFormMode !== "edit") {
+        projectedRows.push(["__new__", record.legal_name, record.entity_type, record.entity_role, record.status]);
+      }
+      const projectedPrimaryCount = projectedRows.filter(row => normalizeEntityRole(row[3]) === "Primary").length;
+
+      if (!record.entity_role) {
+        return {
+          valid: false,
+          message: "Select a valid Entity Role: Primary or Franchisee.",
+          fields: [$('[data-entity-field="entity_role"]')]
+        };
+      }
+
       if (record.entity_role === "Primary" && existingPrimary && activeEntityRecordId !== existingPrimary.entity_id) {
         return {
           valid: false,
@@ -11435,10 +11495,18 @@
         };
       }
 
-      if (!hasPrimaryEntity() && record.entity_role !== "Primary") {
+      if (projectedPrimaryCount > 1) {
         return {
           valid: false,
-          message: "Create the Primary Entity first. Franchisee entities can be added after the primary company exists.",
+          message: "Only one Primary Entity can exist. Add Franchisee entities under the registered Primary Entity.",
+          fields: [$('[data-entity-field="entity_role"]')]
+        };
+      }
+
+      if (projectedRows.length && projectedPrimaryCount === 0) {
+        return {
+          valid: false,
+          message: "HRMS must keep one Primary Entity. Create or keep the Primary Entity before adding Franchisee entities.",
           fields: [$('[data-entity-field="entity_role"]')]
         };
       }
