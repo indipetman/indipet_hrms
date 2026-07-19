@@ -6016,7 +6016,9 @@
                   </label>
                   <label class="location-form-field">
                     <span class="location-form-label">Country</span>
-                    <input name="country" data-entity-field="country" value="India" placeholder="Enter country">
+                    <select name="country" data-entity-field="country">
+                      <option value="India">India</option>
+                    </select>
                   </label>
                   <label class="location-form-field">
                     <span class="location-form-label">Phone</span>
@@ -7379,8 +7381,19 @@
     const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
     const hrmsMockApi = {
       baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
-      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "state_masters", "pincode_masters", "city_masters"]
+      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "country_masters", "state_masters", "pincode_masters", "city_masters"]
     };
+    const defaultCountryMasters = [
+      {
+        country_code: "IN",
+        country_name: "India",
+        iso2: "IN",
+        phone_code: "+91",
+        default_country: "TRUE",
+        status: "Active"
+      }
+    ];
+    let countryMasters = [...defaultCountryMasters];
     const defaultStateMasters = [
       ["01", "Jammu and Kashmir"], ["02", "Himachal Pradesh"], ["03", "Punjab"], ["04", "Chandigarh"],
       ["05", "Uttarakhand"], ["06", "Haryana"], ["07", "Delhi"], ["08", "Rajasthan"], ["09", "Uttar Pradesh"],
@@ -7464,6 +7477,40 @@
 
     function activeStateMasters() {
       return stateMasters.filter(state => state.status !== "Inactive");
+    }
+
+    function normalizeCountryMaster(record = {}) {
+      const countryName = String(record.country_name || record.country || "").trim();
+      const countryCode = String(record.country_code || record.iso2 || countryName.slice(0, 2)).trim().toUpperCase();
+      if (!countryName || !countryCode) return null;
+      return {
+        country_code: countryCode,
+        country_name: countryName,
+        iso2: String(record.iso2 || countryCode).trim().toUpperCase(),
+        phone_code: String(record.phone_code || "").trim(),
+        default_country: String(record.default_country || "").toLowerCase() === "true" || record.default_country === true ? "TRUE" : "",
+        status: record.status || "Active"
+      };
+    }
+
+    function activeCountryMasters() {
+      return countryMasters.filter(country => country.status !== "Inactive");
+    }
+
+    function defaultCountryName() {
+      return activeCountryMasters().find(country => country.default_country === "TRUE")?.country_name || "India";
+    }
+
+    function populateCountryMasterSelects() {
+      $$('select[data-entity-field="country"]').forEach(select => {
+        const selectedCountry = select.value || defaultCountryName();
+        select.replaceChildren();
+        activeCountryMasters().forEach(country => select.add(new Option(country.country_name, country.country_name)));
+        if (!activeCountryMasters().some(country => country.country_name === selectedCountry)) {
+          select.add(new Option(selectedCountry, selectedCountry));
+        }
+        select.value = selectedCountry;
+      });
     }
 
     function stateMasterByName(stateName) {
@@ -7623,12 +7670,15 @@
 
     function applyHrmsReserve(data = {}) {
       resetHrmsStaticDisplayData();
+      const reserveCountryMasters = (data.country_masters || []).map(normalizeCountryMaster).filter(Boolean);
+      countryMasters = reserveCountryMasters.length ? reserveCountryMasters : [...defaultCountryMasters];
       const reserveStateMasters = (data.state_masters || []).map(normalizeStateMaster).filter(Boolean);
       stateMasters = reserveStateMasters.length ? reserveStateMasters : [...defaultStateMasters];
       const reservePincodeMasters = (data.pincode_masters || []).map(normalizePincodeMaster).filter(Boolean);
       pincodeMasters = reservePincodeMasters.length ? reservePincodeMasters : [...defaultPincodeMasters];
       const reserveCityMasters = (data.city_masters || []).map(normalizeCityMaster).filter(Boolean);
       cityMasters = reserveCityMasters.length ? reserveCityMasters : [...defaultCityMasters];
+      populateCountryMasterSelects();
       populateStateMasterSelects();
 
       (data.entities || []).forEach(entity => {
@@ -7781,6 +7831,14 @@
         })),
         attendance: attendanceRecords,
         keyholders: keyholderEmployees,
+        country_masters: countryMasters.map(country => ({
+          country_code: country.country_code,
+          country_name: country.country_name,
+          iso2: country.iso2,
+          phone_code: country.phone_code,
+          default_country: country.default_country,
+          status: country.status || "Active"
+        })),
         state_masters: stateMasters.map(state => ({
           state_code: state.state_code,
           state_name: state.state_name,
@@ -10464,9 +10522,13 @@
 
     function populateEntityForm(record = emptyEntityRecord()) {
       clearEntityFormError();
+      populateCountryMasterSelects();
       populateStateMasterSelects();
       $$("[data-entity-field]").forEach(field => {
-        field.value = record[field.dataset.entityField] ?? "";
+        const value = field.dataset.entityField === "country"
+          ? record.country || defaultCountryName()
+          : record[field.dataset.entityField] ?? "";
+        field.value = value;
       });
       if (record.state && !stateMasterByName(record.state)) {
         const stateField = $('[data-entity-field="state"]');
@@ -10559,7 +10621,9 @@
       syncEntityPanFromGstin(false);
       syncEntityStateCode();
       return $$("[data-entity-field]").reduce((record, field) => {
-        record[field.dataset.entityField] = field.value.trim();
+        record[field.dataset.entityField] = field.dataset.entityField === "country"
+          ? field.value.trim() || defaultCountryName()
+          : field.value.trim();
         return record;
       }, emptyEntityRecord());
     }

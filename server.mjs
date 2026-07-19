@@ -40,6 +40,10 @@ const tableConfig = {
     key: "row_id",
     headers: ["row_id", "pageKey", "cells"]
   },
+  country_masters: {
+    key: "country_code",
+    headers: ["country_code", "country_name", "iso2", "phone_code", "default_country", "status"]
+  },
   state_masters: {
     key: "state_code",
     headers: ["state_code", "state_name", "gst_state_code", "country", "status"]
