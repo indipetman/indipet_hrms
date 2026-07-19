@@ -945,6 +945,7 @@
 
     body.erp-core-embed {
       background: var(--workspace);
+      overflow: hidden;
     }
 
     body.erp-core-embed .hrms-login-screen,
@@ -964,7 +965,24 @@
     body.erp-core-embed .content {
       width: 100%;
       max-width: none;
-      padding: 24px;
+      padding: 0;
+    }
+
+    body.erp-core-embed .page-header {
+      justify-content: flex-end;
+      margin-bottom: 16px;
+    }
+
+    body.erp-core-embed .page-header > div:first-child {
+      display: none;
+    }
+
+    body.erp-core-embed .location-tabs {
+      scrollbar-width: none;
+    }
+
+    body.erp-core-embed .location-tabs::-webkit-scrollbar {
+      display: none;
     }
 
     .page-header {
@@ -6966,6 +6984,21 @@
       const pageKey = hrmsLaunchParams.get("corePage") || "entity-master";
       return hrmsAllowedErpCorePages.has(pageKey) ? pageKey : "entity-master";
     };
+    let erpCoreFrameHeightTimer = null;
+
+    function notifyErpCoreFrameHeight() {
+      if (!hrmsEmbeddedInErpCore || window.parent === window) return;
+      clearTimeout(erpCoreFrameHeightTimer);
+      erpCoreFrameHeightTimer = setTimeout(() => {
+        const content = document.querySelector(".content");
+        const height = Math.max(
+          document.documentElement.scrollHeight,
+          document.body.scrollHeight,
+          content ? content.scrollHeight : 0
+        );
+        window.parent.postMessage({ type: "indipet:erp-core-frame-height", height }, "*");
+      }, 40);
+    }
 
     if (hrmsEmbeddedInErpCore) {
       document.body.classList.add("erp-core-embed");
@@ -6973,7 +7006,9 @@
 
     function revealHrmsApp() {
       document.body.classList.remove("hrms-login-pending", "hrms-login-required");
-      setTimeout(maybeShowPrimaryEntityPrompt, 0);
+      if (!hrmsEmbeddedInErpCore) {
+        setTimeout(maybeShowPrimaryEntityPrompt, 0);
+      }
     }
 
     function hideHrmsAppForLogout() {
@@ -8331,12 +8366,15 @@
         } catch {}
       }
 
+      if (hrmsEmbeddedInErpCore) {
+        applyHrmsReserve(data || {});
+        activatePage(hrmsRequestedErpCorePage());
+        maybeShowPrimaryEntityPrompt();
+        return;
+      }
       applyHrmsReserve(data || {});
       rerenderHrmsActiveView();
       maybeShowPrimaryEntityPrompt();
-      if (hrmsEmbeddedInErpCore) {
-        activatePage(hrmsRequestedErpCorePage());
-      }
     }
 
     function rerenderHrmsActiveView() {
@@ -8352,6 +8390,7 @@
         renderModule(activePage);
       }
       refreshIcons();
+      notifyErpCoreFrameHeight();
     }
 
     function updateHrmsDashboardSummary() {
@@ -10981,6 +11020,7 @@
       closeMobileMenu();
       window.scrollTo({ top: 0, behavior: "smooth" });
       refreshIcons();
+      notifyErpCoreFrameHeight();
     }
 
     function setLocationStep(stepIndex) {
@@ -12917,6 +12957,16 @@
       if (!event.target.closest(".entity-table-status-action")) closeEntityStatusMenus();
       if (!event.target.closest("#entityViewStatusAction")) closeEntityViewStatusMenu();
     });
+
+    if (hrmsEmbeddedInErpCore) {
+      window.addEventListener("load", notifyErpCoreFrameHeight);
+      window.addEventListener("resize", notifyErpCoreFrameHeight);
+      if ("ResizeObserver" in window) {
+        new ResizeObserver(notifyErpCoreFrameHeight).observe(document.body);
+      } else {
+        setInterval(notifyErpCoreFrameHeight, 750);
+      }
+    }
 
     resetHrmsStaticDisplayData();
     loadHrmsReserve();
