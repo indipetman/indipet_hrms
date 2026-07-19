@@ -1768,8 +1768,8 @@
 
     .roster-control-view .module-summary {
       grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 14px;
-      margin-bottom: 18px;
+      gap: 16px;
+      margin-bottom: 20px;
     }
 
     .roster-board-view .module-summary {
@@ -1800,17 +1800,17 @@
     }
 
     .roster-summary-card {
-      min-height: 104px;
+      min-height: 96px;
       display: grid;
-      grid-template-columns: 40px minmax(0, 1fr);
-      gap: 13px;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 14px;
       align-items: center;
-      padding: 16px;
+      padding: 17px 18px;
     }
 
     .roster-summary-icon {
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       display: grid;
       place-items: center;
       border-radius: 12px;
@@ -1845,8 +1845,10 @@
     }
 
     .roster-summary-card .summary-label {
-      font-size: 9px;
+      color: var(--text-secondary);
+      font-size: 9.2px;
       font-weight: 750;
+      letter-spacing: 0;
     }
 
     .roster-summary-card .summary-value {
@@ -1855,17 +1857,26 @@
       line-height: 1.05;
     }
 
+    .roster-summary-card .summary-note {
+      margin-top: 6px;
+      color: var(--text-secondary);
+      font-size: 10px;
+      line-height: 1.3;
+    }
+
     .roster-control-view .filter-bar {
       display: grid;
       grid-template-columns: minmax(190px, 1.05fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(190px, 1fr) auto auto;
       gap: 14px;
       align-items: end;
-      margin-bottom: 14px;
-      padding: 16px 18px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-card);
-      background: #fff;
-      box-shadow: var(--shadow);
+      margin: 0;
+      padding: 16px 22px;
+      border-width: 1px 0;
+      border-style: solid;
+      border-color: var(--border);
+      border-radius: 0;
+      background: #f8fafc;
+      box-shadow: none;
     }
 
     .roster-filter-field {
@@ -1902,6 +1913,7 @@
 
     .roster-control-view .table-card {
       overflow: hidden;
+      border-radius: var(--radius-card);
     }
 
     .module-view.entity-master-view {
@@ -2490,15 +2502,20 @@
     }
 
     .roster-control-view .card-header {
-      padding: 17px 18px 14px;
+      padding: 21px 22px 16px;
     }
 
     .roster-control-view .table-wrap {
+      min-height: 300px;
       overflow-x: auto;
     }
 
+    .roster-control-view .table-wrap.is-empty {
+      overflow-x: hidden;
+    }
+
     .roster-control-view table {
-      min-width: 1280px;
+      min-width: 1180px;
     }
 
     .roster-control-view th {
@@ -2510,8 +2527,12 @@
     }
 
     .roster-control-view td {
-      height: 58px;
+      height: 62px;
       font-size: 10.5px;
+    }
+
+    .roster-control-view .empty-state {
+      min-height: 300px;
     }
 
     .roster-location-name {
@@ -2578,7 +2599,9 @@
     }
 
     .roster-control-view .pagination {
-      padding: 12px 18px;
+      padding: 13px 22px;
+      border-top: 1px solid var(--border);
+      background: #fff;
     }
 
     .pagination-page-size {
@@ -4990,6 +5013,19 @@
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
+      .roster-control-view .module-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .roster-control-view .filter-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .roster-filter-button,
+      .roster-reset-button {
+        width: 100%;
+      }
+
       .dashboard-main {
         grid-template-columns: 1fr;
       }
@@ -5084,6 +5120,17 @@
 
       .module-summary.entity-summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .roster-control-view .module-summary,
+      .roster-control-view .filter-bar {
+        grid-template-columns: 1fr;
+      }
+
+      .roster-control-view .card-header,
+      .roster-control-view .pagination {
+        padding-left: 16px;
+        padding-right: 16px;
       }
 
       .location-kpis {
@@ -8335,7 +8382,7 @@
         `;
       }
       $(".filter-bar", module).style.display = "";
-      $(".table-wrap", module).classList.remove("roster-board-table-wrap");
+      $(".table-wrap", module).classList.remove("roster-board-table-wrap", "is-empty");
       $(".filter-bar", module).innerHTML = `
         <div class="table-search">
           <i data-lucide="search"></i>
@@ -8402,18 +8449,34 @@
       `;
     }
 
+    function rosterDefaultPeriodLabel() {
+      return "22 Jun - 28 Jun 2026";
+    }
+
     function rosterOverviewRecords() {
+      const defaultPeriod = rosterDefaultPeriodLabel();
       const presets = {
-        "SCP102-LKG203": { rosterId: "RST-LKG-260622", period: "22 Jun – 28 Jun 2026", version: "v2", status: "Needs Review", filled: 51, open: 20, conflicts: 2, keyholder: "Ready", updated: "17 Jun 2026, 04:10 PM", issue: "Open Slots" },
-        "SCP102-DSP202": { rosterId: "RST-DSP-260622", period: "22 Jun – 28 Jun 2026", version: "v1", status: "Draft", filled: 38, open: 8, conflicts: 1, keyholder: "Ready", updated: "16 Jun 2026, 06:35 PM", issue: "Skill Gap" },
-        "PCP103-NTW204": { rosterId: "", period: "22 Jun – 28 Jun 2026", version: "-", status: "Not Generated", filled: 0, open: 0, conflicts: 0, keyholder: "Keyholder Missing", updated: "-", issue: "Keyholder Issue" },
-        "HPR104-RJT205": { rosterId: "RST-RJT-260622", period: "22 Jun – 28 Jun 2026", version: "v1", status: "Ready to Publish", filled: 44, open: 0, conflicts: 0, keyholder: "Ready", updated: "17 Jun 2026, 11:15 AM", issue: "Pending Publish" },
-        "IPL101-SLT201": { rosterId: "RST-HQ-260622", period: "22 Jun – 28 Jun 2026", version: "v3", status: "Published", filled: 30, open: 0, conflicts: 0, keyholder: "Ready", updated: "15 Jun 2026, 05:20 PM", issue: "Ready" }
+        "SCP102-LKG203": { rosterId: "RST-LKG-260622", period: defaultPeriod, version: "v2", status: "Needs Review", filled: 51, open: 20, conflicts: 2, keyholder: "Ready", updated: "17 Jun 2026, 04:10 PM", issue: "Open Slots" },
+        "SCP102-DSP202": { rosterId: "RST-DSP-260622", period: defaultPeriod, version: "v1", status: "Draft", filled: 38, open: 8, conflicts: 1, keyholder: "Ready", updated: "16 Jun 2026, 06:35 PM", issue: "Skill Gap" },
+        "PCP103-NTW204": { rosterId: "", period: defaultPeriod, version: "-", status: "Not Generated", filled: 0, open: 0, conflicts: 0, keyholder: "Keyholder Missing", updated: "-", issue: "Keyholder Issue" },
+        "HPR104-RJT205": { rosterId: "RST-RJT-260622", period: defaultPeriod, version: "v1", status: "Ready to Publish", filled: 44, open: 0, conflicts: 0, keyholder: "Ready", updated: "17 Jun 2026, 11:15 AM", issue: "Pending Publish" },
+        "IPL101-SLT201": { rosterId: "RST-HQ-260622", period: defaultPeriod, version: "v3", status: "Published", filled: 30, open: 0, conflicts: 0, keyholder: "Ready", updated: "15 Jun 2026, 05:20 PM", issue: "Ready" }
       };
       return subLocations.map(location => {
-        const record = presets[location.id];
+        const record = presets[location.id] || {
+          rosterId: "",
+          version: "-",
+          status: "Not Generated",
+          filled: 0,
+          open: 0,
+          conflicts: 0,
+          keyholder: "Not Ready",
+          updated: "-",
+          issue: "Not Generated"
+        };
         return {
           ...record,
+          period: defaultPeriod,
           locationId: location.id,
           locationName: location.listName,
           displayName: location.name,
@@ -8424,16 +8487,17 @@
 
     function ensureRosterFilters() {
       const module = $("#moduleView");
+      const defaultPeriod = rosterDefaultPeriodLabel();
       module.classList.remove("roster-board-view");
       module.classList.add("roster-control-view");
       $(".filter-bar", module).style.display = "";
-      $(".table-wrap", module).classList.remove("roster-board-table-wrap");
+      $(".table-wrap", module).classList.remove("roster-board-table-wrap", "is-empty");
       $("#columnButton").style.display = "none";
       $(".filter-bar", module).innerHTML = `
         <div class="roster-filter-field">
           <label for="rosterPeriodFilter">Roster Period</label>
           <select class="filter-select" id="rosterPeriodFilter">
-            <option value="22 Jun – 28 Jun 2026">22 Jun – 28 Jun 2026</option>
+            <option value="${defaultPeriod}">${defaultPeriod}</option>
             <option value="all">All Periods</option>
             <option value="June 2026">June 2026</option>
           </select>
@@ -8467,6 +8531,7 @@
             <option value="Keyholder Issue">Keyholder Issue</option>
             <option value="Skill Gap">Skill Gap</option>
             <option value="Pending Publish">Pending Publish</option>
+            <option value="Not Generated">Not Generated</option>
           </select>
         </div>
         <button class="button roster-filter-button" id="rosterFilterButton" type="button"><i data-lucide="filter"></i>Filters</button>
@@ -8478,7 +8543,7 @@
       $("#rosterIssueFilter").addEventListener("change", () => renderRosterControlCenter());
       $("#rosterFilterButton").addEventListener("click", () => showToast("Roster filters are applied to the overview."));
       $("#moduleReset").addEventListener("click", () => {
-        $("#rosterPeriodFilter").value = "22 Jun – 28 Jun 2026";
+        $("#rosterPeriodFilter").value = defaultPeriod;
         $("#moduleLocation").value = "all";
         $("#moduleStatus").value = "all";
         $("#rosterIssueFilter").value = "all";
@@ -8487,13 +8552,15 @@
     }
 
     function renderRosterControlCenter() {
-      const previousPeriod = $("#rosterPeriodFilter")?.value || "22 Jun – 28 Jun 2026";
+      const defaultPeriod = rosterDefaultPeriodLabel();
+      const previousPeriod = $("#rosterPeriodFilter")?.value || defaultPeriod;
       const previousLocation = $("#moduleLocation")?.value || "all";
       const previousStatus = $("#moduleStatus")?.value || "all";
       const previousIssue = $("#rosterIssueFilter")?.value || "all";
       restoreGenericModuleFilters();
       ensureRosterFilters();
       if ($("#rosterPeriodFilter")) $("#rosterPeriodFilter").value = previousPeriod;
+      if ($("#rosterPeriodFilter") && !["all", "June 2026"].includes(previousPeriod)) $("#rosterPeriodFilter").value = defaultPeriod;
       if ($("#moduleLocation")) $("#moduleLocation").value = previousLocation;
       if ($("#moduleStatus")) $("#moduleStatus").value = previousStatus;
       if ($("#rosterIssueFilter")) $("#rosterIssueFilter").value = previousIssue;
@@ -8501,19 +8568,31 @@
       const locationId = $("#moduleLocation").value;
       const status = $("#moduleStatus").value;
       const issue = $("#rosterIssueFilter")?.value || "all";
+      const selectedPeriod = ["all", "June 2026"].includes(period) ? "all" : defaultPeriod;
       const records = rosterOverviewRecords().filter(record =>
-        (period === "all" || record.period === period) &&
+        (selectedPeriod === "all" || record.period === selectedPeriod) &&
         (locationId === "all" || record.locationId === locationId) &&
         (status === "all" || record.status === status) &&
         (issue === "all" || record.issue === issue)
       );
       const all = rosterOverviewRecords();
+      const totalLocations = all.length;
+      const publishedCount = all.filter(record => record.status === "Published").length;
+      const draftCount = all.filter(record => record.status === "Draft").length;
+      const openSlotCount = all.reduce((sum, record) => sum + (Number(record.open) || 0), 0);
+      const needsReviewCount = all.filter(record =>
+        record.status === "Needs Review" ||
+        Number(record.open) > 0 ||
+        Number(record.conflicts) > 0 ||
+        record.keyholder !== "Ready"
+      ).length;
+      const percentNote = count => totalLocations ? `${Math.round((count / totalLocations) * 100)}% of locations` : "No locations yet";
       const summary = [
-        ["Total Locations", "5", "Active locations", "building-2", "blue"],
-        ["Published Rosters", "2", "40% of locations", "circle-check", "green"],
-        ["Draft Rosters", "1", "20% of locations", "file-text", "amber"],
-        ["Open Slots", "28", "Across all locations", "user-round-x", "red"],
-        ["Needs Review", "1", "Locations with issues", "triangle-alert", "purple"]
+        ["Total Locations", String(totalLocations), totalLocations ? "Roster-enabled locations" : "Create Sub Locations first", "building-2", "blue"],
+        ["Published Rosters", String(publishedCount), percentNote(publishedCount), "circle-check", "green"],
+        ["Draft Rosters", String(draftCount), percentNote(draftCount), "file-text", "amber"],
+        ["Open Slots", String(openSlotCount), totalLocations ? "Across all locations" : "No roster slots yet", "user-round-x", "red"],
+        ["Needs Review", String(needsReviewCount), totalLocations ? "Locations with issues" : "No roster issues yet", "triangle-alert", "purple"]
       ];
       $("#moduleSummary").innerHTML = summary.map(item => `
         <article class="card summary-card roster-summary-card">
@@ -8557,12 +8636,25 @@
           </tr>
         `;
       }).join("");
+      $("#moduleEmpty").innerHTML = all.length
+        ? `
+          <i data-lucide="search-x"></i>
+          <div class="empty-title">No roster records match these filters</div>
+          <div class="empty-copy">Reset filters or choose another location, status or issue type.</div>
+        `
+        : `
+          <i data-lucide="calendar-x"></i>
+          <div class="empty-title">No locations ready for roster</div>
+          <div class="empty-copy">Create Sub Locations under the Primary Entity before generating rosters.</div>
+        `;
       $("#moduleEmpty").classList.toggle("is-visible", records.length === 0);
+      const rosterTableWrap = $(".table-wrap", $("#moduleView"));
+      rosterTableWrap.classList.toggle("is-empty", records.length === 0);
       $("#moduleTableBody").closest("table").style.display = records.length ? "table" : "none";
       $("#moduleCount").textContent = records.length;
       $(".pagination", $("#moduleView")).style.display = "";
       $(".pagination", $("#moduleView")).innerHTML = `
-        <div class="pagination-copy">Showing 1 to ${records.length} of ${all.length} locations</div>
+        <div class="pagination-copy">${records.length ? `Showing 1 to ${records.length} of ${all.length} locations` : `Showing 0 of ${all.length} locations`}</div>
         <div class="page-buttons">
           <button class="page-button" disabled><i data-lucide="chevron-left"></i></button>
           <button class="page-button is-current">1</button>
