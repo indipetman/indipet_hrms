@@ -847,6 +847,72 @@
       background: var(--workspace);
     }
 
+    .profile-menu-wrap {
+      position: relative;
+    }
+
+    .profile-button[aria-expanded="true"] {
+      background: var(--workspace);
+    }
+
+    .profile-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 60;
+      width: 220px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+    }
+
+    .profile-menu[hidden] {
+      display: none;
+    }
+
+    .profile-menu-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .profile-menu-name {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .profile-menu-role {
+      margin-top: 3px;
+      color: var(--text-secondary);
+      font-size: 10px;
+    }
+
+    .profile-menu-action {
+      width: 100%;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 14px;
+      border: 0;
+      background: #fff;
+      color: #b91c1c;
+      font-size: 12px;
+      font-weight: 650;
+      text-align: left;
+    }
+
+    .profile-menu-action:hover {
+      background: #fef2f2;
+    }
+
+    .profile-menu-action svg {
+      width: 16px;
+      height: 16px;
+    }
+
     .avatar {
       width: 32px;
       height: 32px;
@@ -5446,13 +5512,25 @@
             <i data-lucide="bell"></i>
             <span class="notification-dot"></span>
           </button>
-          <button class="profile-button" id="profileButton" title="Account">
-            <span class="avatar">VA</span>
-            <span class="profile-copy">
-              <span class="profile-name">Vikram Admin</span>
-              <span class="profile-role">HR & Operations</span>
-            </span>
-          </button>
+          <div class="profile-menu-wrap" id="profileMenuWrap">
+            <button class="profile-button" id="profileButton" type="button" title="Account" aria-haspopup="menu" aria-expanded="false" aria-controls="profileMenu">
+              <span class="avatar">VA</span>
+              <span class="profile-copy">
+                <span class="profile-name">Vikram Admin</span>
+                <span class="profile-role">HR & Operations</span>
+              </span>
+            </button>
+            <div class="profile-menu" id="profileMenu" role="menu" hidden>
+              <div class="profile-menu-header">
+                <div class="profile-menu-name">Vikram Admin</div>
+                <div class="profile-menu-role">HR & Operations</div>
+              </div>
+              <button class="profile-menu-action" id="logoutButton" type="button" role="menuitem">
+                <i data-lucide="log-out"></i>
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -6819,6 +6897,13 @@
 
     function revealHrmsApp() {
       document.body.classList.remove("hrms-login-pending", "hrms-login-required");
+    }
+
+    function hideHrmsAppForLogout() {
+      closeProfileMenu();
+      document.getElementById("hrmsLoginPassword").value = "";
+      document.getElementById("hrmsLoginMessage").hidden = true;
+      requireHrmsLogin();
     }
 
     function requireHrmsLogin() {
@@ -11465,6 +11550,22 @@
       showToast.timer = setTimeout(() => $("#toast").classList.remove("is-visible"), 2600);
     }
 
+    function openProfileMenu() {
+      $("#profileMenu").hidden = false;
+      $("#profileButton").setAttribute("aria-expanded", "true");
+      refreshIcons();
+    }
+
+    function closeProfileMenu() {
+      $("#profileMenu").hidden = true;
+      $("#profileButton").setAttribute("aria-expanded", "false");
+    }
+
+    function toggleProfileMenu() {
+      if ($("#profileMenu").hidden) openProfileMenu();
+      else closeProfileMenu();
+    }
+
     function openPrimaryEntityPrompt() {
       if (!$("#primaryEntityPrompt")) return;
       $("#primaryEntityPrompt").classList.add("is-open");
@@ -11739,7 +11840,14 @@
       showToast(`${$("#pageTitle").textContent} export prepared.`);
     });
     $("#columnButton").addEventListener("click", () => showToast("Column preferences opened for this table."));
-    $("#profileButton").addEventListener("click", () => showToast("Signed in as HR & Operations Admin."));
+    $("#profileButton").addEventListener("click", event => {
+      event.stopPropagation();
+      toggleProfileMenu();
+    });
+    $("#logoutButton").addEventListener("click", () => {
+      hideHrmsAppForLogout();
+      showToast("Logged out of HRMS.");
+    });
 
     $("#chartLocation").addEventListener("change", event => {
       const multipliers = { "All Locations": 1, "Corporate HQ": 0.42, "Lake Gardens": 0.56, "Newtown": 0.37, "Rajarhat": 0.31 };
@@ -12240,6 +12348,7 @@
         closeModal();
         closeDrawer();
         closeMobileMenu();
+        closeProfileMenu();
         $$(".row-menu").forEach(menu => menu.classList.remove("is-open"));
         if ($("#entityColumnOrganizerPanel")) {
           $("#entityColumnOrganizerPanel").hidden = true;
@@ -12251,6 +12360,7 @@
     });
 
     document.addEventListener("click", event => {
+      if (!event.target.closest("#profileMenuWrap")) closeProfileMenu();
       if (!event.target.closest(".row-menu-wrap")) {
         $$(".row-menu").forEach(menu => menu.classList.remove("is-open"));
       }
