@@ -10997,6 +10997,7 @@
 
       const options = Array.from(source.options)
         .filter(option => option.value)
+        .filter(option => option.textContent.trim().toLowerCase() !== "admin")
         .map(option => ({ value: option.value, label: option.textContent.trim() }));
 
       target.replaceChildren(new Option("Select role from Role Master", ""));
@@ -11005,7 +11006,7 @@
 
     function entityLoginAccessRequired() {
       const entityRole = $('[data-entity-field="entity_role"]').value;
-      return entityRole === "Franchisee";
+      return entityRole === "Primary" || entityRole === "Franchisee";
     }
 
     function resetEntityAccessFields() {
@@ -11017,26 +11018,47 @@
 
     function updateEntityAccessState() {
       const entityRole = $('[data-entity-field="entity_role"]').value;
+      const isPrimary = entityRole === "Primary";
       const accessRequired = entityLoginAccessRequired();
       const fieldset = $("#entityAccessFieldset");
       const context = $("#entityAccessContext");
       const contextTitle = $("#entityAccessContextTitle");
       const contextCopy = $("#entityAccessContextCopy");
+      const roleField = $('[data-entity-access-field="role_id"]');
 
       fieldset.disabled = !accessRequired;
       context.classList.toggle("is-disabled", !accessRequired);
 
       $$(".entity-access-field-state").forEach(state => {
-        state.textContent = accessRequired ? "Required" : "Not required";
-        state.classList.toggle("required", accessRequired);
+        const isRoleState = state.closest(".location-form-field")?.querySelector('[data-entity-access-field="role_id"]');
+        state.textContent = isRoleState && isPrimary ? "System default" : accessRequired ? "Required" : "Not required";
+        state.classList.toggle("required", accessRequired && !(isRoleState && isPrimary));
       });
 
       $$("[data-entity-access-field]").forEach(field => {
         field.required = accessRequired;
         if (!accessRequired) field.removeAttribute("aria-invalid");
       });
+      if (roleField) {
+        if (isPrimary) {
+          roleField.replaceChildren(new Option("Admin (System)", "SYSTEM_ADMIN"));
+          roleField.value = "SYSTEM_ADMIN";
+          roleField.disabled = true;
+          roleField.required = false;
+        } else {
+          const previousRoleValue = roleField.value;
+          populateEntityRoleMasterOptions();
+          if ([...roleField.options].some(option => option.value === previousRoleValue)) {
+            roleField.value = previousRoleValue;
+          }
+          roleField.disabled = !accessRequired;
+        }
+      }
 
-      if (accessRequired) {
+      if (isPrimary) {
+        contextTitle.textContent = "Primary Admin login access is required";
+        contextCopy.textContent = "Create the root User ID and password here. Role is fixed as system Admin and is not managed in Role Master.";
+      } else if (accessRequired) {
         contextTitle.textContent = `ERP access required for ${entityRole}`;
         contextCopy.textContent = "Complete the login fields below. Access permissions come from the selected Role Master record.";
       } else if (entityRole) {
@@ -11045,7 +11067,7 @@
         resetEntityAccessFields();
       } else {
         contextTitle.textContent = "Select an entity role in Overview";
-        contextCopy.textContent = "Login fields become available when the entity role is Franchisee.";
+        contextCopy.textContent = "Login fields become available when the entity role is Primary or Franchisee.";
         resetEntityAccessFields();
       }
 
@@ -11372,7 +11394,7 @@
       if (missing.length) {
         return {
           valid: false,
-          message: "Complete all required ERP login access fields for this Franchisee entity.",
+          message: `Complete all required ERP login access fields for this ${$('[data-entity-field="entity_role"]').value || "entity"}.`,
           fields: missing
         };
       }
@@ -12031,6 +12053,11 @@
       event.preventDefault();
       if (blockAddUntilPrimaryEntity("add records")) return;
       const name = $("#recordName").value.trim();
+      if (activePage === "role-manager" && name.toLowerCase() === "admin") {
+        showToast("Admin is a system-reserved Primary role and cannot be created in Role Master.");
+        $("#recordName").focus();
+        return;
+      }
       closeModal();
       event.target.reset();
       showToast(`${name || "Record"} created as a draft.`);
