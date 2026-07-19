@@ -5799,11 +5799,10 @@
                     </label>
                     <label class="location-form-field">
                       <span class="location-form-label">State <span class="field-state">Optional</span></span>
-                      <input name="state" data-location-field="state" placeholder="Enter state">
-                    </label>
-                    <label class="location-form-field">
-                      <span class="location-form-label">State Code <span class="field-state">Optional</span></span>
-                      <input name="state_code" data-location-field="state_code" placeholder="Enter state code">
+                      <select name="state" data-location-field="state">
+                        <option value="">Select state</option>
+                      </select>
+                      <input type="hidden" name="state_code" data-location-field="state_code">
                     </label>
                     <label class="location-form-field">
                       <span class="location-form-label">Latitude <span class="field-state">Optional</span></span>
@@ -6007,7 +6006,10 @@
                   </label>
                   <label class="location-form-field">
                     <span class="location-form-label">State</span>
-                    <input name="state" data-entity-field="state" placeholder="Enter state">
+                    <select name="state" data-entity-field="state">
+                      <option value="">Select state</option>
+                    </select>
+                    <input type="hidden" name="gst_state_code" data-entity-field="gst_state_code">
                   </label>
                   <label class="location-form-field">
                     <span class="location-form-label">Country</span>
@@ -7374,8 +7376,26 @@
     const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
     const hrmsMockApi = {
       baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
-      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows"]
+      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "state_masters"]
     };
+    const defaultStateMasters = [
+      ["01", "Jammu and Kashmir"], ["02", "Himachal Pradesh"], ["03", "Punjab"], ["04", "Chandigarh"],
+      ["05", "Uttarakhand"], ["06", "Haryana"], ["07", "Delhi"], ["08", "Rajasthan"], ["09", "Uttar Pradesh"],
+      ["10", "Bihar"], ["11", "Sikkim"], ["12", "Arunachal Pradesh"], ["13", "Nagaland"], ["14", "Manipur"],
+      ["15", "Mizoram"], ["16", "Tripura"], ["17", "Meghalaya"], ["18", "Assam"], ["19", "West Bengal"],
+      ["20", "Jharkhand"], ["21", "Odisha"], ["22", "Chhattisgarh"], ["23", "Madhya Pradesh"], ["24", "Gujarat"],
+      ["26", "Dadra and Nagar Haveli and Daman and Diu"], ["27", "Maharashtra"], ["29", "Karnataka"],
+      ["30", "Goa"], ["31", "Lakshadweep"], ["32", "Kerala"], ["33", "Tamil Nadu"], ["34", "Puducherry"],
+      ["35", "Andaman and Nicobar Islands"], ["36", "Telangana"], ["37", "Andhra Pradesh"], ["38", "Ladakh"],
+      ["97", "Other Territory"]
+    ].map(([code, name]) => ({
+      state_code: code,
+      state_name: name,
+      gst_state_code: code,
+      country: "India",
+      status: "Active"
+    }));
+    let stateMasters = [...defaultStateMasters];
 
     function clearObject(object) {
       Object.keys(object).forEach(key => delete object[key]);
@@ -7384,6 +7404,52 @@
     function zeroPageConfig(config) {
       config.values = config.labels.map(() => "0");
       config.rows = [];
+    }
+
+    function normalizeStateMaster(record = {}) {
+      const stateName = String(record.state_name || record.state || "").trim();
+      const gstCode = String(record.gst_state_code || record.state_code || "").trim().padStart(2, "0");
+      if (!stateName || !gstCode) return null;
+      return {
+        state_code: String(record.state_code || gstCode).trim().padStart(2, "0"),
+        state_name: stateName,
+        gst_state_code: gstCode,
+        country: record.country || "India",
+        status: record.status || "Active"
+      };
+    }
+
+    function activeStateMasters() {
+      return stateMasters.filter(state => state.status !== "Inactive");
+    }
+
+    function stateMasterByName(stateName) {
+      const normalized = String(stateName || "").trim().toLowerCase();
+      return activeStateMasters().find(state => state.state_name.toLowerCase() === normalized) || null;
+    }
+
+    function populateStateMasterSelects() {
+      $$('select[data-entity-field="state"], select[data-location-field="state"]').forEach(select => {
+        const selectedState = select.value;
+        select.replaceChildren(new Option("Select state", ""));
+        activeStateMasters().forEach(state => select.add(new Option(state.state_name, state.state_name)));
+        select.value = selectedState;
+      });
+    }
+
+    function syncStateCode(stateField, codeField) {
+      if (!stateField || !codeField) return "";
+      const match = stateMasterByName(stateField.value);
+      codeField.value = match?.gst_state_code || "";
+      return codeField.value;
+    }
+
+    function syncEntityStateCode() {
+      return syncStateCode($('[data-entity-field="state"]'), $('[data-entity-field="gst_state_code"]'));
+    }
+
+    function syncLocationStateCode() {
+      return syncStateCode($('[data-location-field="state"]'), $('[data-location-field="state_code"]'));
     }
 
     function resetHrmsStaticDisplayData() {
@@ -7404,6 +7470,9 @@
 
     function applyHrmsReserve(data = {}) {
       resetHrmsStaticDisplayData();
+      const reserveStateMasters = (data.state_masters || []).map(normalizeStateMaster).filter(Boolean);
+      stateMasters = reserveStateMasters.length ? reserveStateMasters : [...defaultStateMasters];
+      populateStateMasterSelects();
 
       (data.entities || []).forEach(entity => {
         if (!entity.entity_id) return;
@@ -7554,6 +7623,13 @@
         })),
         attendance: attendanceRecords,
         keyholders: keyholderEmployees,
+        state_masters: stateMasters.map(state => ({
+          state_code: state.state_code,
+          state_name: state.state_name,
+          gst_state_code: state.gst_state_code,
+          country: state.country || "India",
+          status: state.status || "Active"
+        })),
         module_rows: Object.entries(pageConfig).flatMap(([pageKey, config]) => {
           if (["entity-master", "employee-master", "location-master"].includes(pageKey)) return [];
           return config.rows.map((cells, index) => ({ row_id: `${pageKey}-${index + 1}`, pageKey, cells }));
@@ -10022,13 +10098,23 @@
 
     function populateLocationForm(record) {
       clearLocationFormError();
+      populateStateMasterSelects();
       $$("[data-location-field]").forEach(field => {
         field.value = record[field.dataset.locationField] ?? "";
       });
+      if (record.state && !stateMasterByName(record.state)) {
+        const stateField = $('[data-location-field="state"]');
+        if (stateField) {
+          stateField.add(new Option(record.state, record.state));
+          stateField.value = record.state;
+        }
+      }
+      syncLocationStateCode();
       setLocationStep(0);
     }
 
     function collectLocationFormRecord() {
+      syncLocationStateCode();
       return $$("[data-location-field]").reduce((record, field) => {
         record[field.dataset.locationField] = field.value.trim();
         return record;
@@ -10181,6 +10267,7 @@
         city: "",
         pincode: "",
         state: "",
+        gst_state_code: "",
         country: "India",
         commission_on_products: "0",
         commission_on_services: "0",
@@ -10199,9 +10286,18 @@
 
     function populateEntityForm(record = emptyEntityRecord()) {
       clearEntityFormError();
+      populateStateMasterSelects();
       $$("[data-entity-field]").forEach(field => {
         field.value = record[field.dataset.entityField] ?? "";
       });
+      if (record.state && !stateMasterByName(record.state)) {
+        const stateField = $('[data-entity-field="state"]');
+        if (stateField) {
+          stateField.add(new Option(record.state, record.state));
+          stateField.value = record.state;
+        }
+      }
+      syncEntityStateCode();
       syncEntityPanFromGstin(false);
       populateEntityRoleMasterOptions();
       resetEntityAccessFields();
@@ -10280,6 +10376,7 @@
 
     function collectEntityFormRecord() {
       syncEntityPanFromGstin(false);
+      syncEntityStateCode();
       return $$("[data-entity-field]").reduce((record, field) => {
         record[field.dataset.entityField] = field.value.trim();
         return record;
@@ -11484,8 +11581,12 @@
         field.removeAttribute("aria-invalid");
         const hasInvalid = $$('[data-location-field][aria-invalid="true"]').length > 0;
         if (!hasInvalid) $("#locationFormError").classList.remove("is-visible");
+        if (field.dataset.locationField === "state") syncLocationStateCode();
       });
-      field.addEventListener("change", () => field.removeAttribute("aria-invalid"));
+      field.addEventListener("change", () => {
+        field.removeAttribute("aria-invalid");
+        if (field.dataset.locationField === "state") syncLocationStateCode();
+      });
     });
 
     $("#cancelLocationForm").addEventListener("click", () => activatePage("sub-location"));
@@ -11544,11 +11645,13 @@
         field.removeAttribute("aria-invalid");
         $("#entityFormError").classList.remove("is-visible");
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin(false);
+        if (field.dataset.entityField === "state") syncEntityStateCode();
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
         if (field.dataset.entityField === "entity_role") updateEntityAccessState();
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin();
+        if (field.dataset.entityField === "state") syncEntityStateCode();
       });
     });
     $("#entityForm").addEventListener("submit", event => {

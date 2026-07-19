@@ -39,6 +39,10 @@ const tableConfig = {
   module_rows: {
     key: "row_id",
     headers: ["row_id", "pageKey", "cells"]
+  },
+  state_masters: {
+    key: "state_code",
+    headers: ["state_code", "state_name", "gst_state_code", "country", "status"]
   }
 };
 

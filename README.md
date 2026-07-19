@@ -6,10 +6,8 @@ This repository is intentionally kept clean for rebuilding HRMS from the approve
 
 - `hrms_dashboard_nav_visual.html` - approved HRMS UI prototype and current source for rebuilding the app.
 - `server.mjs` - local Excel-backed mock data reserve used while HRMS is being converted into a functional app.
-- `mock-db/hrms_mock_database.xlsx` - generated local workbook for HRMS reserve data. It starts empty.
+- `mock-db/hrms_mock_database.xlsx` - generated local workbook for HRMS reserve data. Runtime records start empty, with reusable masters such as `state_masters` available for shared dropdowns.
 - `package.json` - Node scripts and dependency declaration for the mock reserve.
-- `supabase_schema.sql` - HRMS database/schema reference for backend planning.
-- `generate_hrms_schema_pdf.js` - helper script for generating HRMS schema documentation from the schema source.
 
 Old handoff archives, PDFs, generated builds, and unrelated experiments should not be committed here.
 
