@@ -7504,9 +7504,10 @@
 
     function cityMastersByState(stateName) {
       const normalizedState = String(stateName || "").trim().toLowerCase();
+      if (!normalizedState) return [];
       const seen = new Set();
       return activePincodeMasters()
-        .filter(record => !normalizedState || record.state_name.toLowerCase() === normalizedState)
+        .filter(record => record.state_name.toLowerCase() === normalizedState)
         .filter(record => {
           const key = `${record.city.toLowerCase()}|${record.state_name.toLowerCase()}`;
           if (seen.has(key)) return false;
@@ -7532,10 +7533,7 @@
       const cities = cityMastersByState(fields.state?.value || "");
       fields.city.replaceChildren(new Option("Select city", ""));
       cities.forEach(record => fields.city.add(new Option(record.city, record.city)));
-      if (currentCity && ![...fields.city.options].some(option => option.value === currentCity)) {
-        fields.city.add(new Option(currentCity, currentCity));
-      }
-      fields.city.value = currentCity;
+      fields.city.value = cities.some(record => record.city === currentCity) ? currentCity : "";
     }
 
     function applyPincodeAddress(prefix, showHint = false) {
