@@ -43,6 +43,10 @@ const tableConfig = {
   state_masters: {
     key: "state_code",
     headers: ["state_code", "state_name", "gst_state_code", "country", "status"]
+  },
+  pincode_masters: {
+    key: "pincode",
+    headers: ["pincode", "city", "state_name", "gst_state_code", "country", "status"]
   }
 };
 

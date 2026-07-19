@@ -6,7 +6,7 @@ This repository is intentionally kept clean for rebuilding HRMS from the approve
 
 - `hrms_dashboard_nav_visual.html` - approved HRMS UI prototype and current source for rebuilding the app.
 - `server.mjs` - local Excel-backed mock data reserve used while HRMS is being converted into a functional app.
-- `mock-db/hrms_mock_database.xlsx` - generated local workbook for HRMS reserve data. Runtime records start empty, with reusable masters such as `state_masters` available for shared dropdowns.
+- `mock-db/hrms_mock_database.xlsx` - generated local workbook for HRMS reserve data. Runtime records start empty, with reusable masters such as `state_masters` and `pincode_masters` available for shared dropdowns and address auto-fill.
 - `package.json` - Node scripts and dependency declaration for the mock reserve.
 
 Old handoff archives, PDFs, generated builds, and unrelated experiments should not be committed here.

@@ -7375,7 +7375,7 @@
     const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
     const hrmsMockApi = {
       baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
-      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "state_masters"]
+      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "state_masters", "pincode_masters"]
     };
     const defaultStateMasters = [
       ["01", "Jammu and Kashmir"], ["02", "Himachal Pradesh"], ["03", "Punjab"], ["04", "Chandigarh"],
@@ -7395,6 +7395,22 @@
       status: "Active"
     }));
     let stateMasters = [...defaultStateMasters];
+    const defaultPincodeMasters = [
+      ["700029", "Kolkata", "West Bengal"],
+      ["700045", "Kolkata", "West Bengal"],
+      ["700091", "Kolkata", "West Bengal"],
+      ["700135", "Rajarhat", "West Bengal"],
+      ["700156", "Newtown", "West Bengal"],
+      ["700157", "Rajarhat", "West Bengal"]
+    ].map(([pincode, city, stateName]) => ({
+      pincode,
+      city,
+      state_name: stateName,
+      gst_state_code: stateMasterByName(stateName)?.gst_state_code || "",
+      country: "India",
+      status: "Active"
+    }));
+    let pincodeMasters = [...defaultPincodeMasters];
 
     function clearObject(object) {
       Object.keys(object).forEach(key => delete object[key]);
@@ -7456,6 +7472,54 @@
       return syncStateCode($('[data-location-field="state"]'), $('[data-location-field="state_code"]'));
     }
 
+    function normalizePincodeMaster(record = {}) {
+      const pincode = String(record.pincode || "").replace(/\D/g, "");
+      const city = String(record.city || "").trim();
+      const stateName = String(record.state_name || record.state || "").trim();
+      const stateMaster = stateMasterByName(stateName);
+      const gstStateCode = String(record.gst_state_code || stateMaster?.gst_state_code || "").trim().padStart(2, "0");
+      if (!pincode || !city || !stateName) return null;
+      return {
+        pincode,
+        city,
+        state_name: stateName,
+        gst_state_code: gstStateCode,
+        country: record.country || "India",
+        status: record.status || "Active"
+      };
+    }
+
+    function activePincodeMasters() {
+      return pincodeMasters.filter(record => record.status !== "Inactive");
+    }
+
+    function pincodeMasterByPincode(pincode) {
+      const normalized = String(pincode || "").replace(/\D/g, "");
+      return activePincodeMasters().find(record => record.pincode === normalized) || null;
+    }
+
+    function applyPincodeAddress(prefix, showHint = false) {
+      const pincodeField = $(`[data-${prefix}-field="pincode"]`) || $(`[data-${prefix}-field="address_pincode"]`);
+      const cityField = $(`[data-${prefix}-field="city"]`) || $(`[data-${prefix}-field="address_city"]`);
+      const stateField = $(`[data-${prefix}-field="state"]`) || $(`[data-${prefix}-field="address_state"]`);
+      const stateCodeField = $(`[data-${prefix}-field="state_code"]`) || $(`[data-${prefix}-field="gst_state_code"]`);
+      if (!pincodeField || !cityField || !stateField) return null;
+
+      const normalizedPincode = pincodeField.value.replace(/\D/g, "").slice(0, 6);
+      if (pincodeField.value !== normalizedPincode) pincodeField.value = normalizedPincode;
+
+      const match = pincodeMasterByPincode(normalizedPincode);
+      if (!match) return null;
+
+      cityField.value = match.city;
+      stateField.value = match.state_name;
+      if (stateCodeField) stateCodeField.value = match.gst_state_code;
+      cityField.removeAttribute("aria-invalid");
+      stateField.removeAttribute("aria-invalid");
+      if (showHint) showToast(`City and State fetched from pincode: ${match.city}, ${match.state_name}.`);
+      return match;
+    }
+
     function resetHrmsStaticDisplayData() {
       attendanceRecords.length = 0;
       keyholderEmployees.length = 0;
@@ -7476,6 +7540,8 @@
       resetHrmsStaticDisplayData();
       const reserveStateMasters = (data.state_masters || []).map(normalizeStateMaster).filter(Boolean);
       stateMasters = reserveStateMasters.length ? reserveStateMasters : [...defaultStateMasters];
+      const reservePincodeMasters = (data.pincode_masters || []).map(normalizePincodeMaster).filter(Boolean);
+      pincodeMasters = reservePincodeMasters.length ? reservePincodeMasters : [...defaultPincodeMasters];
       populateStateMasterSelects();
 
       (data.entities || []).forEach(entity => {
@@ -7634,6 +7700,14 @@
           gst_state_code: state.gst_state_code,
           country: state.country || "India",
           status: state.status || "Active"
+        })),
+        pincode_masters: pincodeMasters.map(record => ({
+          pincode: record.pincode,
+          city: record.city,
+          state_name: record.state_name,
+          gst_state_code: record.gst_state_code,
+          country: record.country || "India",
+          status: record.status || "Active"
         })),
         module_rows: Object.entries(pageConfig).flatMap(([pageKey, config]) => {
           if (["entity-master", "employee-master", "location-master"].includes(pageKey)) return [];
@@ -10114,11 +10188,13 @@
           stateField.value = record.state;
         }
       }
+      applyPincodeAddress("location");
       syncLocationStateCode();
       setLocationStep(0);
     }
 
     function collectLocationFormRecord() {
+      applyPincodeAddress("location");
       syncLocationStateCode();
       return $$("[data-location-field]").reduce((record, field) => {
         record[field.dataset.locationField] = field.value.trim();
@@ -10302,6 +10378,7 @@
           stateField.value = record.state;
         }
       }
+      applyPincodeAddress("entity");
       syncEntityStateCode();
       syncEntityPanFromGstin(false);
       populateEntityRoleMasterOptions();
@@ -10380,6 +10457,7 @@
     }
 
     function collectEntityFormRecord() {
+      applyPincodeAddress("entity");
       syncEntityPanFromGstin(false);
       syncEntityStateCode();
       return $$("[data-entity-field]").reduce((record, field) => {
@@ -10812,6 +10890,7 @@
       $('[data-employee-field="is_salesperson"]').value = "false";
       $('[data-employee-field="face_registered"]').value = "false";
       renderEmployeePreferredShiftOptions();
+      applyPincodeAddress("employee");
       clearEmployeeFormError();
       setEmployeeStep(0);
       updateEmployeeReadiness();
@@ -10845,6 +10924,7 @@
     }
 
     function collectEmployeeRecord() {
+      applyPincodeAddress("employee");
       return $$("[data-employee-field]").reduce((record, field) => {
         record[field.dataset.employeeField] = field.value.trim();
         return record;
@@ -11605,10 +11685,12 @@
         field.removeAttribute("aria-invalid");
         const hasInvalid = $$('[data-location-field][aria-invalid="true"]').length > 0;
         if (!hasInvalid) $("#locationFormError").classList.remove("is-visible");
+        if (field.dataset.locationField === "pincode") applyPincodeAddress("location", false);
         if (field.dataset.locationField === "state") syncLocationStateCode();
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
+        if (field.dataset.locationField === "pincode") applyPincodeAddress("location", true);
         if (field.dataset.locationField === "state") syncLocationStateCode();
       });
     });
@@ -11669,12 +11751,14 @@
         field.removeAttribute("aria-invalid");
         $("#entityFormError").classList.remove("is-visible");
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin(false);
+        if (field.dataset.entityField === "pincode") applyPincodeAddress("entity", false);
         if (field.dataset.entityField === "state") syncEntityStateCode();
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
         if (field.dataset.entityField === "entity_role") updateEntityAccessState();
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin();
+        if (field.dataset.entityField === "pincode") applyPincodeAddress("entity", true);
         if (field.dataset.entityField === "state") syncEntityStateCode();
       });
     });
@@ -11719,12 +11803,14 @@
       field.addEventListener("input", () => {
         field.removeAttribute("aria-invalid");
         $("#employeeFormError").classList.remove("is-visible");
+        if (field.dataset.employeeField === "address_pincode") applyPincodeAddress("employee", false);
         updateEmployeeReadiness();
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
         $("#employeeFormError").classList.remove("is-visible");
         if (field.dataset.employeeField === "location_id") renderEmployeePreferredShiftOptions();
+        if (field.dataset.employeeField === "address_pincode") applyPincodeAddress("employee", true);
         updateEmployeeReadiness();
       });
     });
