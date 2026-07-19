@@ -5791,7 +5791,9 @@
                     </label>
                     <label class="location-form-field">
                       <span class="location-form-label">City <span class="field-state">Optional</span></span>
-                      <input name="city" data-location-field="city" placeholder="Enter city">
+                      <select name="city" data-location-field="city">
+                        <option value="">Select city</option>
+                      </select>
                     </label>
                     <label class="location-form-field">
                       <span class="location-form-label">Pincode <span class="field-state">Optional</span></span>
@@ -5997,7 +5999,9 @@
                   </label>
                   <label class="location-form-field">
                     <span class="location-form-label">City</span>
-                    <input name="city" data-entity-field="city" placeholder="Enter city">
+                    <select name="city" data-entity-field="city">
+                      <option value="">Select city</option>
+                    </select>
                   </label>
                   <label class="location-form-field">
                     <span class="location-form-label">Pincode</span>
@@ -6201,7 +6205,7 @@
                   <p class="form-section-description">Capture address details without asking for address IDs or employee links.</p>
                   <div class="location-form-grid">
                     <label class="location-form-field span-3"><span class="location-form-label">Present Address</span><input data-employee-field="present_address" placeholder="Enter present address"></label>
-                    <label class="location-form-field"><span class="location-form-label">City</span><input data-employee-field="address_city" placeholder="City"></label>
+                    <label class="location-form-field"><span class="location-form-label">City</span><select data-employee-field="address_city"><option value="">Select city</option></select></label>
                     <label class="location-form-field"><span class="location-form-label">State</span><input data-employee-field="address_state" placeholder="State"></label>
                     <label class="location-form-field"><span class="location-form-label">Pincode</span><input data-employee-field="address_pincode" inputmode="numeric" placeholder="Pincode"></label>
                     <label class="location-form-field"><span class="location-form-label">Permanent Same as Present?</span><select data-employee-field="same_as_present"><option value="true">Yes</option><option value="false">No</option></select></label>
@@ -7498,11 +7502,44 @@
       return activePincodeMasters().find(record => record.pincode === normalized) || null;
     }
 
+    function cityMastersByState(stateName) {
+      const normalizedState = String(stateName || "").trim().toLowerCase();
+      const seen = new Set();
+      return activePincodeMasters()
+        .filter(record => !normalizedState || record.state_name.toLowerCase() === normalizedState)
+        .filter(record => {
+          const key = `${record.city.toLowerCase()}|${record.state_name.toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => a.city.localeCompare(b.city));
+    }
+
+    function addressFields(prefix) {
+      return {
+        pincode: $(`[data-${prefix}-field="pincode"]`) || $(`[data-${prefix}-field="address_pincode"]`),
+        city: $(`[data-${prefix}-field="city"]`) || $(`[data-${prefix}-field="address_city"]`),
+        state: $(`[data-${prefix}-field="state"]`) || $(`[data-${prefix}-field="address_state"]`),
+        stateCode: $(`[data-${prefix}-field="state_code"]`) || $(`[data-${prefix}-field="gst_state_code"]`)
+      };
+    }
+
+    function populateCityMasterSelect(prefix, selectedCity = "") {
+      const fields = addressFields(prefix);
+      if (!fields.city || fields.city.tagName !== "SELECT") return;
+      const currentCity = selectedCity || fields.city.value;
+      const cities = cityMastersByState(fields.state?.value || "");
+      fields.city.replaceChildren(new Option("Select city", ""));
+      cities.forEach(record => fields.city.add(new Option(record.city, record.city)));
+      if (currentCity && ![...fields.city.options].some(option => option.value === currentCity)) {
+        fields.city.add(new Option(currentCity, currentCity));
+      }
+      fields.city.value = currentCity;
+    }
+
     function applyPincodeAddress(prefix, showHint = false) {
-      const pincodeField = $(`[data-${prefix}-field="pincode"]`) || $(`[data-${prefix}-field="address_pincode"]`);
-      const cityField = $(`[data-${prefix}-field="city"]`) || $(`[data-${prefix}-field="address_city"]`);
-      const stateField = $(`[data-${prefix}-field="state"]`) || $(`[data-${prefix}-field="address_state"]`);
-      const stateCodeField = $(`[data-${prefix}-field="state_code"]`) || $(`[data-${prefix}-field="gst_state_code"]`);
+      const { pincode: pincodeField, city: cityField, state: stateField, stateCode: stateCodeField } = addressFields(prefix);
       if (!pincodeField || !cityField || !stateField) return null;
 
       const normalizedPincode = pincodeField.value.replace(/\D/g, "").slice(0, 6);
@@ -7511,9 +7548,10 @@
       const match = pincodeMasterByPincode(normalizedPincode);
       if (!match) return null;
 
-      cityField.value = match.city;
       stateField.value = match.state_name;
       if (stateCodeField) stateCodeField.value = match.gst_state_code;
+      populateCityMasterSelect(prefix, match.city);
+      cityField.value = match.city;
       cityField.removeAttribute("aria-invalid");
       stateField.removeAttribute("aria-invalid");
       if (showHint) showToast(`City and State fetched from pincode: ${match.city}, ${match.state_name}.`);
@@ -10188,6 +10226,7 @@
           stateField.value = record.state;
         }
       }
+      populateCityMasterSelect("location", record.city || "");
       applyPincodeAddress("location");
       syncLocationStateCode();
       setLocationStep(0);
@@ -10378,6 +10417,7 @@
           stateField.value = record.state;
         }
       }
+      populateCityMasterSelect("entity", record.city || "");
       applyPincodeAddress("entity");
       syncEntityStateCode();
       syncEntityPanFromGstin(false);
@@ -10496,6 +10536,7 @@
       if (stateMaster && stateField && stateCodeField) {
         stateField.value = stateMaster.state_name;
         stateCodeField.value = stateMaster.gst_state_code;
+        populateCityMasterSelect("entity");
         stateField.removeAttribute("aria-invalid");
       }
 
@@ -10890,6 +10931,7 @@
       $('[data-employee-field="is_salesperson"]').value = "false";
       $('[data-employee-field="face_registered"]').value = "false";
       renderEmployeePreferredShiftOptions();
+      populateCityMasterSelect("employee");
       applyPincodeAddress("employee");
       clearEmployeeFormError();
       setEmployeeStep(0);
@@ -11686,12 +11728,18 @@
         const hasInvalid = $$('[data-location-field][aria-invalid="true"]').length > 0;
         if (!hasInvalid) $("#locationFormError").classList.remove("is-visible");
         if (field.dataset.locationField === "pincode") applyPincodeAddress("location", false);
-        if (field.dataset.locationField === "state") syncLocationStateCode();
+        if (field.dataset.locationField === "state") {
+          syncLocationStateCode();
+          populateCityMasterSelect("location");
+        }
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
         if (field.dataset.locationField === "pincode") applyPincodeAddress("location", true);
-        if (field.dataset.locationField === "state") syncLocationStateCode();
+        if (field.dataset.locationField === "state") {
+          syncLocationStateCode();
+          populateCityMasterSelect("location");
+        }
       });
     });
 
@@ -11752,14 +11800,20 @@
         $("#entityFormError").classList.remove("is-visible");
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin(false);
         if (field.dataset.entityField === "pincode") applyPincodeAddress("entity", false);
-        if (field.dataset.entityField === "state") syncEntityStateCode();
+        if (field.dataset.entityField === "state") {
+          syncEntityStateCode();
+          populateCityMasterSelect("entity");
+        }
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
         if (field.dataset.entityField === "entity_role") updateEntityAccessState();
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin();
         if (field.dataset.entityField === "pincode") applyPincodeAddress("entity", true);
-        if (field.dataset.entityField === "state") syncEntityStateCode();
+        if (field.dataset.entityField === "state") {
+          syncEntityStateCode();
+          populateCityMasterSelect("entity");
+        }
       });
     });
     $("#entityForm").addEventListener("submit", event => {
@@ -11804,6 +11858,7 @@
         field.removeAttribute("aria-invalid");
         $("#employeeFormError").classList.remove("is-visible");
         if (field.dataset.employeeField === "address_pincode") applyPincodeAddress("employee", false);
+        if (field.dataset.employeeField === "address_state") populateCityMasterSelect("employee");
         updateEmployeeReadiness();
       });
       field.addEventListener("change", () => {
@@ -11811,6 +11866,7 @@
         $("#employeeFormError").classList.remove("is-visible");
         if (field.dataset.employeeField === "location_id") renderEmployeePreferredShiftOptions();
         if (field.dataset.employeeField === "address_pincode") applyPincodeAddress("employee", true);
+        if (field.dataset.employeeField === "address_state") populateCityMasterSelect("employee");
         updateEmployeeReadiness();
       });
     });
