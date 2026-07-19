@@ -5890,11 +5890,7 @@
                     <label class="location-form-field">
                       <span class="location-form-label">Parent Entity ID <span class="field-state required">Required</span></span>
                       <select name="parent_entity_id" data-location-field="parent_entity_id" required>
-                        <option value="">Select parent entity</option>
-                        <option value="IPL101">IPL101 - Indipet Private Limited</option>
-                        <option value="SCP102">SCP102 - South Corona Pet Care</option>
-                        <option value="PCP103">PCP103 - Pets & Co Partnership Firm</option>
-                        <option value="HPR104">HPR104 - Happy Paws Retail Private Limited</option>
+                        <option value="">Select parent legal entity</option>
                       </select>
                     </label>
                     <label class="location-form-field">
@@ -6336,8 +6332,8 @@
                   <h2 class="form-section-title">Organization Assignment</h2>
                   <p class="form-section-description">Assign where the employee belongs and who they report to.</p>
                   <div class="location-form-grid">
-                    <label class="location-form-field"><span class="location-form-label">Legal Entity <span class="field-state required">Required</span></span><select data-employee-field="parent_entity_id" required><option value="">Select legal entity</option><option value="IPL101">Indipet Private Limited</option><option value="SCP102">South Corona Pet Care</option><option value="PCP103">Pets & Co Partnership Firm</option><option value="HPR104">Happy Paws Retail Private Limited</option></select></label>
-                    <label class="location-form-field"><span class="location-form-label">Assigned Location <span class="field-state required">Required</span></span><select data-employee-field="location_id" required><option value="">Select location</option><option value="IPL101-SLT201">Indipet Corporate HQ</option><option value="SCP102-DSP202">Deshapriya Park Store</option><option value="SCP102-LKG203">Indipet Care Lake Gardens</option><option value="PCP103-NTW204">Newtown Store</option><option value="HPR104-RJT205">Rajarhat Store</option></select></label>
+                    <label class="location-form-field"><span class="location-form-label">Legal Entity <span class="field-state required">Required</span></span><select data-employee-field="parent_entity_id" required><option value="">Select legal entity</option></select></label>
+                    <label class="location-form-field"><span class="location-form-label">Assigned Location <span class="field-state required">Required</span></span><select data-employee-field="location_id" required><option value="">Select legal entity first</option></select></label>
                     <label class="location-form-field"><span class="location-form-label">Department <span class="field-state required">Required</span></span><select data-employee-field="department_id" required><option value="">Select department</option><option value="HRM301">HR & Admin</option><option value="RTL302">Retail & Store Sales</option><option value="GRM303">Grooming</option><option value="VET304">Veterinary Clinic</option><option value="INV305">Inventory & Procurement</option><option value="FIN306">Finance & Compliance</option></select></label>
                     <label class="location-form-field"><span class="location-form-label">Designation <span class="field-state required">Required</span></span><select data-employee-field="designation_id" required><option value="">Select designation</option><option value="HRM401">HR Manager</option><option value="ARM402">Area Manager</option><option value="STM403">Store Manager</option><option value="SAM404">Store Assistant Manager</option><option value="SAE405">Sales Associate</option><option value="SGR406">Senior Groomer</option><option value="GRM407">Groomer</option><option value="CLM408">Clinic Manager</option><option value="VDR409">Veterinary Doctor</option><option value="VAS410">Vet Assistant</option><option value="INE411">Inventory Executive</option><option value="FNE412">Finance Executive</option></select></label>
                     <label class="location-form-field"><span class="location-form-label">Employee Category</span><select data-employee-field="employee_category"><option value="">Select category</option><option value="MGT601">Managerial / Supervisory</option><option value="ADM602">Administrative / Clerical</option><option value="HSK603">Highly Skilled</option><option value="SKD604">Skilled</option><option value="SSK605">Semi-Skilled</option><option value="USK606">Unskilled</option></select></label>
@@ -7423,6 +7419,49 @@
       }[character]));
     }
 
+    function setMarkupSelectOptions(select, options, preferredValue = "") {
+      if (!select) return;
+      const previousValue = select.value;
+      select.innerHTML = options.join("");
+      const optionValues = Array.from(select.options).map(option => option.value);
+      if (preferredValue && optionValues.includes(preferredValue)) {
+        select.value = preferredValue;
+      } else if (previousValue && optionValues.includes(previousValue)) {
+        select.value = previousValue;
+      } else if (optionValues.includes("")) {
+        select.value = "";
+      }
+    }
+
+    function registeredEntityOptionMarkup(placeholder = "Select legal entity") {
+      const records = registeredEntityRecordsForOperations();
+      return [
+        `<option value="">${placeholder}</option>`,
+        ...records.map(record => `<option value="${escapeHtml(record.entity_id)}">${escapeHtml(record.legal_name)} (${escapeHtml(record.entity_id)})</option>`)
+      ];
+    }
+
+    function populateRegisteredEntitySelects(preferredEntityId = "") {
+      const activeEntity = activeOperatingEntityRecord();
+      const records = registeredEntityRecordsForOperations();
+      const defaultEntityId = preferredEntityId || activeEntity?.entity_id || (records.length === 1 ? records[0].entity_id : "");
+      setMarkupSelectOptions($('[data-location-field="parent_entity_id"]'), registeredEntityOptionMarkup("Select parent legal entity"), defaultEntityId);
+      setMarkupSelectOptions($('[data-employee-field="parent_entity_id"]'), registeredEntityOptionMarkup("Select legal entity"), defaultEntityId);
+      populateEmployeeLocationOptions();
+    }
+
+    function populateEmployeeLocationOptions(preferredLocationId = "") {
+      const locationSelect = $('[data-employee-field="location_id"]');
+      if (!locationSelect) return;
+      const selectedEntityId = $('[data-employee-field="parent_entity_id"]')?.value || "";
+      const scopedLocations = registeredSubLocationsForOperations().filter(location => !selectedEntityId || location.parentCode === selectedEntityId);
+      setMarkupSelectOptions(locationSelect, [
+        `<option value="">${selectedEntityId ? "Select location" : "Select legal entity first"}</option>`,
+        ...scopedLocations.map(location => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.listName)} (${escapeHtml(location.id)})</option>`)
+      ], preferredLocationId);
+      renderEmployeePreferredShiftOptions();
+    }
+
     const entityColumnStorageKey = "indipet.hrms.entityMaster.columns";
     const entityFirstColumnPinStorageKey = "indipet.hrms.entityMaster.firstColumnPinned";
 
@@ -7888,10 +7927,36 @@
       $("#profileAvatar").textContent = initialsFromName(profileName);
     }
 
+    function primaryEntityRecord() {
+      return entityRecords().find(record => record.entity_role === "Primary") || null;
+    }
+
+    function activeOperatingContext() {
+      return operatingContexts.find(context => context.context_id === "default") || null;
+    }
+
+    function activeOperatingEntityRecord() {
+      const context = activeOperatingContext();
+      return context?.active_entity_id ? entityRecordById(context.active_entity_id) : primaryEntityRecord();
+    }
+
+    function registeredEntityRecordsForOperations() {
+      const activeEntity = activeOperatingEntityRecord();
+      if (!activeEntity) return [];
+      if (activeEntity.entity_role === "Franchisee") return [activeEntity];
+      return entityRecords().filter(record => record.status !== "Inactive");
+    }
+
+    function registeredSubLocationsForOperations() {
+      const entityIds = new Set(registeredEntityRecordsForOperations().map(record => record.entity_id));
+      return subLocations.filter(location => entityIds.has(location.parentCode));
+    }
+
     function setOperatingEntityContext(record = {}) {
       if (!record.entity_id) return;
       const existingPrimaryId = operatingContexts.find(context => context.context_id === "default")?.primary_entity_id || "";
-      const primaryEntityId = record.entity_role === "Primary" ? record.entity_id : existingPrimaryId;
+      const primaryRecord = record.entity_role === "Primary" ? record : primaryEntityRecord();
+      const primaryEntityId = record.entity_role === "Primary" ? record.entity_id : existingPrimaryId || primaryRecord?.entity_id || "";
       const nextContext = {
         context_id: "default",
         primary_entity_id: primaryEntityId,
@@ -7904,6 +7969,29 @@
       const contextIndex = operatingContexts.findIndex(context => context.context_id === "default");
       if (contextIndex >= 0) operatingContexts[contextIndex] = nextContext;
       else operatingContexts.push(nextContext);
+      renderProfileFromOperatingContext();
+    }
+
+    function reconcileOperatingEntityContext() {
+      const primaryRecord = primaryEntityRecord();
+      if (!primaryRecord) {
+        operatingContexts = [];
+        renderProfileFromOperatingContext();
+        return;
+      }
+
+      const context = activeOperatingContext();
+      const activeEntity = context?.active_entity_id ? entityRecordById(context.active_entity_id) : null;
+      if (!context || !activeEntity || context.primary_entity_id !== primaryRecord.entity_id) {
+        setOperatingEntityContext(primaryRecord);
+        return;
+      }
+
+      if (activeEntity.entity_role === "Primary") {
+        setOperatingEntityContext(primaryRecord);
+        return;
+      }
+
       renderProfileFromOperatingContext();
     }
 
@@ -7962,11 +8050,8 @@
         };
         parentEntities[entity.entity_id] = entity.legal_name || entity.entity_id;
       });
-      if (!operatingContexts.length) {
-        const primaryRecord = entityRecords().find(record => record.entity_role === "Primary") || entityRecords()[0];
-        if (primaryRecord) setOperatingEntityContext(primaryRecord);
-      }
-      renderProfileFromOperatingContext();
+      reconcileOperatingEntityContext();
+      populateRegisteredEntitySelects();
 
       (data.locations || []).forEach(location => {
         if (!location.id) return;
@@ -8006,7 +8091,8 @@
         subLocations.push(finalLocation);
         existingLocationRecords[finalLocation.id] = { ...record };
       });
-      selectedLocationId = subLocations[0]?.id || null;
+      populateRegisteredEntitySelects();
+      selectedLocationId = registeredSubLocationsForOperations()[0]?.id || null;
 
       (data.employees || []).forEach(employee => {
         if (!employee.employee_id) return;
@@ -8221,15 +8307,16 @@
       const chartLocation = $("#chartLocation");
       if (chartLocation) {
         const previousValue = chartLocation.value || "all";
+        const scopedLocations = registeredSubLocationsForOperations();
         chartLocation.innerHTML = [
           `<option value="all">All Locations</option>`,
-          ...subLocations.map(location => `<option value="${location.name}">${location.name}</option>`)
+          ...scopedLocations.map(location => `<option value="${location.name}">${location.name}</option>`)
         ].join("");
         chartLocation.value = [...chartLocation.options].some(option => option.value === previousValue) ? previousValue : "all";
       }
       const attendanceSubtitle = $("#attendanceTrendSubtitle");
       if (attendanceSubtitle) {
-        attendanceSubtitle.textContent = subLocations.length ? "Selected reserve locations, last seven days" : "No attendance data yet";
+        attendanceSubtitle.textContent = registeredSubLocationsForOperations().length ? "Selected reserve locations, last seven days" : "No attendance data yet";
       }
       const quickHints = $$("#dashboardView .quick-hint");
       if (quickHints[0]) quickHints[0].textContent = `${pendingApprovals} pending requests`;
@@ -8409,10 +8496,10 @@
       $("#moduleSearch").placeholder = "Search records";
       setSelectOptions($("#moduleLocation"), [
         { value: "all", label: "All Locations" },
-        { value: "Corporate HQ", label: "Corporate HQ" },
-        { value: "Lake Gardens", label: "Lake Gardens" },
-        { value: "Newtown", label: "Newtown" },
-        { value: "Rajarhat", label: "Rajarhat" }
+        ...registeredSubLocationsForOperations().map(location => ({
+          value: location.listName,
+          label: location.listName
+        }))
       ]);
       setSelectOptions($("#moduleStatus"), [
         { value: "all", label: "All Statuses" },
@@ -8462,7 +8549,7 @@
         "HPR104-RJT205": { rosterId: "RST-RJT-260622", period: defaultPeriod, version: "v1", status: "Ready to Publish", filled: 44, open: 0, conflicts: 0, keyholder: "Ready", updated: "17 Jun 2026, 11:15 AM", issue: "Pending Publish" },
         "IPL101-SLT201": { rosterId: "RST-HQ-260622", period: defaultPeriod, version: "v3", status: "Published", filled: 30, open: 0, conflicts: 0, keyholder: "Ready", updated: "15 Jun 2026, 05:20 PM", issue: "Ready" }
       };
-      return subLocations.map(location => {
+      return registeredSubLocationsForOperations().map(location => {
         const record = presets[location.id] || {
           rosterId: "",
           version: "-",
@@ -8506,7 +8593,7 @@
           <label for="moduleLocation">Location</label>
           <select class="filter-select" id="moduleLocation">
             <option value="all">All Locations</option>
-            ${subLocations.map(location => `<option value="${location.id}">${location.listName}</option>`).join("")}
+            ${registeredSubLocationsForOperations().map(location => `<option value="${location.id}">${location.listName}</option>`).join("")}
           </select>
         </div>
         <div class="roster-filter-field">
@@ -8834,7 +8921,12 @@
       const record = rosterOverviewRecords().find(item => rosterId && item.rosterId === rosterId)
         || rosterOverviewRecords().find(item => item.locationId === locationId)
         || rosterOverviewRecords()[0];
-      const location = subLocations.find(item => item.id === locationId) || subLocations[0];
+      const scopedLocations = registeredSubLocationsForOperations();
+      const location = scopedLocations.find(item => item.id === locationId) || scopedLocations[0];
+      if (!record || !location) {
+        showToast("Create a registered Sub Location before opening the roster board.");
+        return;
+      }
       activePage = "roster-board";
       activeRosterBoardTab = "board";
       $$(".nav-single, .nav-child").forEach(button => button.classList.remove("is-active"));
@@ -9399,7 +9491,8 @@
       const status = $("#moduleStatus").value;
       const rows = config.rows.filter(row => {
         const rowText = row.join(" ").toLowerCase();
-        const rowLocation = row.find(value => ["Corporate HQ", "Lake Gardens", "Newtown", "Rajarhat"].includes(value));
+        const locationNames = registeredSubLocationsForOperations().flatMap(item => [item.name, item.listName]);
+        const rowLocation = row.find(value => locationNames.includes(value));
         const rowStatus = row[row.length - 1];
         return (!search || rowText.includes(search))
           && (location === "all" || rowLocation === location)
@@ -9452,7 +9545,8 @@
     }
 
     function getSelectedLocation() {
-      return subLocations.find(location => location.id === selectedLocationId) || subLocations[0];
+      const scopedLocations = registeredSubLocationsForOperations();
+      return scopedLocations.find(location => location.id === selectedLocationId) || scopedLocations[0] || null;
     }
 
     function isFallbackShift(shift) {
@@ -9500,21 +9594,26 @@
     }
 
     function renderLocationKpis() {
-      const active = subLocations.filter(location => location.status === "Active").length;
-      const ready = subLocations.filter(location => location.readinessLabel === "Ready").length;
-      const blocked = subLocations.filter(location => location.readinessLabel === "Blocked").length;
-      const incomplete = subLocations.length - ready - blocked;
-      $("#totalLocationCount").textContent = subLocations.length;
+      const scopedLocations = registeredSubLocationsForOperations();
+      const active = scopedLocations.filter(location => location.status === "Active").length;
+      const ready = scopedLocations.filter(location => location.readinessLabel === "Ready").length;
+      const blocked = scopedLocations.filter(location => location.readinessLabel === "Blocked").length;
+      const incomplete = scopedLocations.length - ready - blocked;
+      $("#totalLocationCount").textContent = scopedLocations.length;
       $("#activeLocationCount").textContent = active;
       $("#readyLocationCount").textContent = ready;
       $("#incompleteLocationCount").textContent = incomplete;
       $("#blockedLocationCount").textContent = blocked;
-      $("#locationListCount").textContent = `(${subLocations.length})`;
+      $("#locationListCount").textContent = `(${scopedLocations.length})`;
     }
 
     function renderLocationList() {
       const query = $("#locationSearch").value.trim().toLowerCase();
-      const locations = subLocations.filter(location =>
+      const scopedLocations = registeredSubLocationsForOperations();
+      if (!scopedLocations.some(location => location.id === selectedLocationId)) {
+        selectedLocationId = scopedLocations[0]?.id || null;
+      }
+      const locations = scopedLocations.filter(location =>
         `${location.name} ${location.listName} ${location.id} ${location.parent}`.toLowerCase().includes(query)
       );
 
@@ -9536,8 +9635,8 @@
         $("#locationList").innerHTML = `<div class="location-empty">No locations match the current search.</div>`;
       }
       $("#locationListFoot").textContent = locations.length
-        ? `Showing 1 to ${locations.length} of ${subLocations.length} locations`
-        : `Showing 0 of ${subLocations.length} locations`;
+        ? `Showing 1 to ${locations.length} of ${scopedLocations.length} locations`
+        : `Showing 0 of ${scopedLocations.length} locations`;
       refreshIcons();
     }
 
@@ -10072,17 +10171,18 @@
 
     function populateRosterLocations(selectedId = selectedLocationId, locked = false) {
       const select = $("#rosterLocation");
-      if (!subLocations.length) {
+      const scopedLocations = registeredSubLocationsForOperations();
+      if (!scopedLocations.length) {
         select.innerHTML = `<option value="">No locations available</option>`;
         select.value = "";
         select.disabled = true;
         $("#rosterLocationHelp").textContent = "Create a Sub Location before generating a roster.";
         return;
       }
-      select.innerHTML = subLocations.map(location => `
+      select.innerHTML = scopedLocations.map(location => `
         <option value="${location.id}" ${location.id === selectedId ? "selected" : ""}>${location.name} (${location.id})</option>
       `).join("");
-      select.value = selectedId;
+      select.value = scopedLocations.some(location => location.id === selectedId) ? selectedId : scopedLocations[0].id;
       select.disabled = locked;
       $("#rosterLocationHelp").textContent = locked
         ? "Location is inherited from the selected Sub Location workspace."
@@ -10104,7 +10204,12 @@
     }
 
     function openRosterGenerateModal({ lockedLocation = false } = {}) {
-      const selectedId = selectedLocationId || subLocations[0].id;
+      const scopedLocations = registeredSubLocationsForOperations();
+      if (!scopedLocations.length) {
+        showToast("Create a registered Sub Location before generating a roster.");
+        return;
+      }
+      const selectedId = selectedLocationId || scopedLocations[0].id;
       const week = defaultRosterWeek();
       rosterGeneratedSetup = null;
       rosterGeneratedResult = null;
@@ -10149,7 +10254,8 @@
     }
 
     function generateRosterPreview(setup) {
-      const location = subLocations.find(item => item.id === setup.locationId) || getSelectedLocation();
+      const location = registeredSubLocationsForOperations().find(item => item.id === setup.locationId) || getSelectedLocation();
+      if (!location) throw new Error("No registered location available for roster generation.");
       const standardShifts = location.shifts.filter(shift => shift[5] === "Active" && !isFallbackShift(shift));
       const fallbackShift = fallbackShiftForLocation(location);
       const fallbackAvailable = Boolean(fallbackShift && fallbackShift[5] === "Active");
@@ -10649,6 +10755,7 @@
     function populateLocationForm(record) {
       clearLocationFormError();
       populateStateMasterSelects();
+      populateRegisteredEntitySelects(record.parent_entity_id || activeOperatingEntityRecord()?.entity_id || "");
       $$("[data-location-field]").forEach(field => {
         field.value = record[field.dataset.locationField] ?? "";
       });
@@ -10786,6 +10893,14 @@
           valid: false,
           message: "Enter a valid email address.",
           fields: [emailField]
+        };
+      }
+
+      if (!registeredEntityRecordsForOperations().some(entity => entity.entity_id === record.parent_entity_id)) {
+        return {
+          valid: false,
+          message: "Select a registered legal entity before saving this Sub Location.",
+          fields: [$('[data-location-field="parent_entity_id"]')]
         };
       }
 
@@ -11213,6 +11328,15 @@
         };
       }
 
+      const existingPrimary = primaryEntityRecord();
+      if (record.entity_role === "Primary" && existingPrimary && activeEntityRecordId !== existingPrimary.entity_id) {
+        return {
+          valid: false,
+          message: "Only one Primary Entity can exist. Add Franchisee entities under the registered Primary Entity.",
+          fields: [$('[data-entity-field="entity_role"]')]
+        };
+      }
+
       if (!hasPrimaryEntity() && record.entity_role !== "Primary") {
         return {
           valid: false,
@@ -11283,7 +11407,12 @@
         gstRegistered: Boolean(finalRecord.gstin)
       };
       parentEntities[entityId] = finalRecord.legal_name;
-      setOperatingEntityContext(finalRecord);
+      if (finalRecord.entity_role === "Primary" || !activeOperatingContext()) {
+        setOperatingEntityContext(finalRecord);
+      } else {
+        reconcileOperatingEntityContext();
+      }
+      populateRegisteredEntitySelects(finalRecord.entity_id);
 
       pageConfig["entity-master"].values = getEntitySummaryValues();
 
@@ -11322,6 +11451,8 @@
         });
       const currentContext = operatingContexts.find(context => context.active_entity_id === activeEntityRecordId || context.primary_entity_id === activeEntityRecordId);
       if (currentContext) setOperatingEntityContext({ ...record, entity_id: activeEntityRecordId });
+      reconcileOperatingEntityContext();
+      populateRegisteredEntitySelects(activeEntityRecordId);
       pageConfig["entity-master"].values = getEntitySummaryValues();
       selectedEntityId = activeEntityRecordId;
       persistHrmsReserve();
@@ -11338,10 +11469,16 @@
         showToast(`Cannot delete ${record.legal_name}; ${record.mapped_locations} location${record.mapped_locations > 1 ? "s are" : " is"} mapped.`);
         return;
       }
+      if (record.entity_role === "Primary" && pageConfig["entity-master"].rows.some(row => row[0] !== entityId)) {
+        showToast("Cannot delete the Primary Entity while Franchisee entities are registered under it.");
+        return;
+      }
       pageConfig["entity-master"].rows = pageConfig["entity-master"].rows.filter(row => row[0] !== entityId);
       delete entityMasterDetails[entityId];
       delete parentEntities[entityId];
       operatingContexts = operatingContexts.filter(context => context.active_entity_id !== entityId && context.primary_entity_id !== entityId);
+      reconcileOperatingEntityContext();
+      populateRegisteredEntitySelects();
       pageConfig["entity-master"].values = getEntitySummaryValues();
       activeEntityRecordId = null;
       entityFormMode = "create";
@@ -11399,7 +11536,8 @@
       $('[data-employee-field="is_reporting_manager_eligible"]').value = "false";
       $('[data-employee-field="is_salesperson"]').value = "false";
       $('[data-employee-field="face_registered"]').value = "false";
-      renderEmployeePreferredShiftOptions();
+      populateRegisteredEntitySelects();
+      populateEmployeeLocationOptions();
       populateCityMasterSelect("employee");
       applyPincodeAddress("employee");
       clearEmployeeFormError();
@@ -11412,7 +11550,7 @@
       const preferredShift = $("#employeePreferredShift");
       if (!preferredShift) return;
       const currentValue = preferredShift.value;
-      const location = subLocations.find(item => item.id === locationId);
+      const location = registeredSubLocationsForOperations().find(item => item.id === locationId);
       const activeShifts = (location?.shifts || []).filter(shift => shift[5] === "Active");
       if (!locationId) {
         preferredShift.innerHTML = `<option value="">Select assigned location first</option>`;
@@ -11535,6 +11673,12 @@
       const missing = requiredFields.filter(field => !record[field.dataset.employeeField]);
       if (missing.length) {
         return { valid: false, message: "Complete the required employee fields before creating the employee.", fields: missing };
+      }
+      if (!registeredEntityRecordsForOperations().some(entity => entity.entity_id === record.parent_entity_id)) {
+        return { valid: false, message: "Select a registered legal entity for this employee.", fields: [$('[data-employee-field="parent_entity_id"]')] };
+      }
+      if (!registeredSubLocationsForOperations().some(location => location.id === record.location_id && location.parentCode === record.parent_entity_id)) {
+        return { valid: false, message: "Select a location mapped to the selected legal entity.", fields: [$('[data-employee-field="location_id"]')] };
       }
       const emailField = $('[data-employee-field="email"]');
       if (record.email && !emailField.validity.valid) {
@@ -11707,7 +11851,7 @@
     }
 
     function hasPrimaryEntity() {
-      return pageConfig["entity-master"].rows.some(row => row[3] === "Primary");
+      return Boolean(primaryEntityRecord());
     }
 
     function openPrimaryEntityCreateForm() {
@@ -12106,7 +12250,8 @@
       const boardAction = event.target.closest("[data-roster-board-action]");
       if (boardAction) {
         const locationId = boardAction.dataset.locationId;
-        const location = subLocations.find(item => item.id === locationId) || getSelectedLocation();
+        const location = registeredSubLocationsForOperations().find(item => item.id === locationId) || getSelectedLocation();
+        if (!location) return;
         selectedLocationId = location.id;
         const action = boardAction.dataset.rosterBoardAction;
         if (action === "validate") {
@@ -12324,6 +12469,7 @@
           selectedLocationId = location.id;
         }
 
+        populateRegisteredEntitySelects(record.parent_entity_id);
         activeLocationTab = "overview";
         $("#locationSearch").value = "";
         persistHrmsReserve();
@@ -12416,11 +12562,13 @@
         $("#employeeFormError").classList.remove("is-visible");
         if (field.dataset.employeeField === "address_pincode") applyPincodeAddress("employee", false);
         if (field.dataset.employeeField === "address_state") populateCityMasterSelect("employee");
+        if (field.dataset.employeeField === "parent_entity_id") populateEmployeeLocationOptions();
         updateEmployeeReadiness();
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
         $("#employeeFormError").classList.remove("is-visible");
+        if (field.dataset.employeeField === "parent_entity_id") populateEmployeeLocationOptions();
         if (field.dataset.employeeField === "location_id") renderEmployeePreferredShiftOptions();
         if (field.dataset.employeeField === "address_pincode") applyPincodeAddress("employee", true);
         if (field.dataset.employeeField === "address_state") populateCityMasterSelect("employee");
