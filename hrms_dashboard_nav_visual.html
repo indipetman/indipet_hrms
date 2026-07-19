@@ -5885,7 +5885,8 @@
                   <div class="location-form-grid">
                     <label class="location-form-field">
                       <span class="location-form-label">Location ID <span class="field-state required">Required</span></span>
-                      <input name="location_id" data-location-field="location_id" placeholder="SCP102-LKG203" required>
+                      <input name="location_id" data-location-field="location_id" placeholder="Auto-generated from parent entity" readonly required>
+                      <div class="field-help">Generated as Mapped Entity Code - Location ID.</div>
                     </label>
                     <label class="location-form-field">
                       <span class="location-form-label">Parent Entity ID <span class="field-state required">Required</span></span>
@@ -10782,6 +10783,7 @@
       $$("[data-location-field]").forEach(field => {
         field.value = record[field.dataset.locationField] ?? "";
       });
+      syncLocationGeneratedId();
       if (record.state && !stateMasterByName(record.state)) {
         const stateField = $('[data-location-field="state"]');
         if (stateField) {
@@ -10795,9 +10797,56 @@
       setLocationStep(0);
     }
 
+    function locationIdStem(source) {
+      const words = String(source || "")
+        .normalize("NFKD")
+        .replace(/[^a-z0-9\s]/gi, " ")
+        .toUpperCase()
+        .match(/[A-Z0-9]+/g) || [];
+      const joined = words.join("");
+      const consonants = joined.replace(/[AEIOU]/g, "");
+      return (consonants || joined || "LOC").slice(0, 3).padEnd(3, "X");
+    }
+
+    function nextLocationSerial(parentEntityId, excludeLocationId = "") {
+      const parentPrefix = `${parentEntityId}-`;
+      const maxSerial = subLocations.reduce((max, location) => {
+        const locationId = String(location.id || "");
+        if (locationId === excludeLocationId || !locationId.startsWith(parentPrefix)) return max;
+        const match = locationId.match(/(\d+)$/);
+        return Math.max(max, match ? Number(match[1]) : 0);
+      }, 0);
+      return String(maxSerial + 1).padStart(3, "0");
+    }
+
+    function generatedLocationIdFromForm() {
+      const parentEntityId = $('[data-location-field="parent_entity_id"]')?.value.trim() || "";
+      const locationName = $('[data-location-field="location_name"]')?.value.trim() || "";
+      const brandName = $('[data-location-field="brand_flag"]')?.value.trim() || "";
+      if (!parentEntityId || !locationName) return "";
+      const stem = locationIdStem(brandName || locationName);
+      let serial = Number(nextLocationSerial(parentEntityId, editingLocationId || ""));
+      let candidate = "";
+      do {
+        candidate = `${parentEntityId}-${stem}${String(serial).padStart(3, "0")}`;
+        serial += 1;
+      } while (subLocations.some(location => location.id === candidate && location.id !== editingLocationId));
+      return candidate;
+    }
+
+    function syncLocationGeneratedId() {
+      const idField = $('[data-location-field="location_id"]');
+      if (!idField) return "";
+      idField.readOnly = true;
+      if (locationFormMode === "edit") return idField.value.trim();
+      idField.value = generatedLocationIdFromForm();
+      return idField.value.trim();
+    }
+
     function collectLocationFormRecord() {
       applyPincodeAddress("location");
       syncLocationStateCode();
+      syncLocationGeneratedId();
       return $$("[data-location-field]").reduce((record, field) => {
         record[field.dataset.locationField] = field.value.trim();
         return record;
@@ -12484,6 +12533,9 @@
           syncLocationStateCode();
           populateCityMasterSelect("location");
         }
+        if (["parent_entity_id", "location_name", "brand_flag"].includes(field.dataset.locationField)) {
+          syncLocationGeneratedId();
+        }
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
@@ -12491,6 +12543,9 @@
         if (field.dataset.locationField === "state") {
           syncLocationStateCode();
           populateCityMasterSelect("location");
+        }
+        if (["parent_entity_id", "location_name", "brand_flag"].includes(field.dataset.locationField)) {
+          syncLocationGeneratedId();
         }
       });
     });
