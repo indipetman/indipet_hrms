@@ -5426,25 +5426,20 @@
         </button>
 
         <div class="nav-label">HR & Operations</div>
-        <div class="nav-group" data-group="organization">
-          <button class="nav-parent" title="Organization">
-            <i data-lucide="building-2"></i>
-            <span class="nav-title">Organization</span>
+        <div class="nav-group" data-group="employees">
+          <button class="nav-parent" title="Employees">
+            <i data-lucide="users"></i>
+            <span class="nav-title">Employees</span>
             <i class="nav-chevron" data-lucide="chevron-right"></i>
           </button>
           <div class="nav-children">
             <div class="nav-children-inner">
               <button class="nav-child" data-page="department-master">Department Master</button>
               <button class="nav-child" data-page="designation-master">Designation Master</button>
+              <button class="nav-child" data-page="employee-master">Employee Master</button>
             </div>
           </div>
         </div>
-
-        <button class="nav-single" data-page="employee-master" title="Employees">
-          <i data-lucide="users"></i>
-          <span class="nav-title">Employees</span>
-          <span></span>
-        </button>
 
         <div class="nav-group" data-group="leave">
           <button class="nav-parent" title="Leave Management">
@@ -7342,8 +7337,8 @@
         rows: [["IPL101", "Indipet Private Limited", "Company", "Primary", "Active"], ["SCP102", "South Corona Pet Care", "Proprietorship", "Franchisee", "Active"], ["PCP103", "Pets & Co Partnership Firm", "Partnership", "Franchisee", "Active"], ["HPR104", "Happy Paws Retail Pvt Ltd", "Company", "Franchisee", "Active"]]
       },
       "location-master": { title: "Location Master", parent: "Organization", description: "Maintain office and store locations, operating status, parent entity and service readiness.", action: "Add Location", icon: "map-pin", labels: ["Locations", "Stores", "HQ Offices"], values: ["5", "4", "1"], columns: ["Location ID", "Location", "Parent Entity", "Type", "Status"], rows: [["IPL101-SLT201", "Corporate HQ", "IPL101", "Office", "Active"], ["SCP102-DSP202", "Deshapriya Park", "SCP102", "Store", "Active"], ["SCP102-LKG203", "Indipet Care Lake Gardens", "SCP102", "Store", "Active"], ["PCP103-NTW204", "Newtown", "PCP103", "Store", "Active"], ["HPR104-RJT205", "Rajarhat", "HPR104", "Store", "Pending"]] },
-      "department-master": genericPage("Department Master", "Organization", "Manage functional departments used by employees, services and reporting.", "Add Department", ["Departments", "Employees Mapped", "Service Linked"], ["8", "42", "4"], ["Department ID", "Department", "Head", "Location Scope", "Status"]),
-      "designation-master": genericPage("Designation Master", "Organization", "Control job titles, grade authority, keyholder eligibility and override level.", "Add Designation", ["Designations", "Keyholder Eligible", "Override Enabled"], ["16", "4", "3"], ["Code", "Designation", "Grade Code", "Keyholder", "Status"]),
+      "department-master": genericPage("Department Master", "Employees", "Manage functional departments used by employees, services and reporting.", "Add Department", ["Departments", "Employees Mapped", "Service Linked"], ["8", "42", "4"], ["Department ID", "Department", "Head", "Location Scope", "Status"]),
+      "designation-master": genericPage("Designation Master", "Employees", "Control job titles, grade authority, keyholder eligibility and override level.", "Add Designation", ["Designations", "Keyholder Eligible", "Override Enabled"], ["16", "4", "3"], ["Code", "Designation", "Grade Code", "Keyholder", "Status"]),
       "service-master": genericPage("Service Master", "Organization", "Define services and the skills or departments required to operate them.", "Add Service", ["Services", "Bookable", "Active Locations"], ["6", "4", "4"], ["Service Code", "Service", "Department", "Staff Requirement", "Status"]),
       "employee-master": { title: "Employee Master", parent: "Employees", description: "View the full employee database, profile completion status, employment details, hierarchy, location and access role from one workspace.", action: "Add Employee", icon: "user-plus", labels: ["Total Employees", "Profile Complete", "Needs Review"], values: ["42", "35", "7"], columns: ["Employee ID", "Employee", "Location", "Designation", "Profile Completion", "Status"], rows: [["IPL101-EMP014", "Meera Roy", "Lake Gardens", "Store Manager", "Complete", "Active"], ["SCP102-EMP022", "Subham Sen", "Lake Gardens", "Assistant Manager", "Complete", "Active"], ["SCP102-EMP026", "Debjit Mitra", "Lake Gardens", "Senior Groomer", "Certificate Review", "Active"], ["SCP102-EMP031", "Tania Biswas", "Lake Gardens", "Groomer", "Probation Active", "Active"], ["SCP102-CON002", "Dr Arjun Lahiri", "Lake Gardens", "Veterinary Doctor", "Review", "Active"]] },
       "employee-category": genericPage("Employee Category", "Employees", "Maintain statutory skilled, semi-skilled and unskilled employee classifications.", "Add Category", ["Categories", "Employees Mapped", "Wage Rules"], ["3", "39", "3"], ["Category Code", "Category", "Skill Class", "Employees", "Status"]),
@@ -11684,7 +11679,11 @@
       if (blockAddUntilPrimaryEntity("add employees")) return;
       activePage = "employee-master-form";
       $$(".nav-single, .nav-child").forEach(button => button.classList.remove("is-active"));
-      $('.nav-single[data-page="employee-master"]').classList.add("is-active");
+      const target = $('.nav-child[data-page="employee-master"]');
+      if (target) {
+        target.classList.add("is-active");
+        openGroup(target.closest(".nav-group"), true);
+      }
       $("#dashboardView").classList.remove("is-active");
       $("#locationControlView").classList.remove("is-active");
       $("#locationFormView").classList.remove("is-active");
