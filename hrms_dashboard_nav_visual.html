@@ -943,48 +943,6 @@
       padding: 30px;
     }
 
-    body.erp-core-embed {
-      background: var(--workspace);
-      overflow: hidden;
-    }
-
-    body.erp-core-embed .hrms-login-screen,
-    body.erp-core-embed .sidebar,
-    body.erp-core-embed .topbar,
-    body.erp-core-embed .mobile-backdrop,
-    body.erp-core-embed #notificationDrawer,
-    body.erp-core-embed #drawerBackdrop {
-      display: none !important;
-    }
-
-    body.erp-core-embed .main-shell {
-      width: 100%;
-      margin-left: 0;
-    }
-
-    body.erp-core-embed .content {
-      width: 100%;
-      max-width: none;
-      padding: 0;
-    }
-
-    body.erp-core-embed .page-header {
-      justify-content: flex-end;
-      margin-bottom: 16px;
-    }
-
-    body.erp-core-embed .page-header > div:first-child {
-      display: none;
-    }
-
-    body.erp-core-embed .location-tabs {
-      scrollbar-width: none;
-    }
-
-    body.erp-core-embed .location-tabs::-webkit-scrollbar {
-      display: none;
-    }
-
     .page-header {
       display: flex;
       align-items: flex-start;
@@ -6978,37 +6936,10 @@
   <script>
     const hrmsLaunchParams = new URLSearchParams(window.location.search);
     const hrmsOpenedFromErp = hrmsLaunchParams.get("from") === "erp";
-    const hrmsEmbeddedInErpCore = hrmsLaunchParams.get("embed") === "erp-core";
-    const hrmsAllowedErpCorePages = new Set(["entity-master", "sub-location", "role-manager"]);
-    const hrmsRequestedErpCorePage = () => {
-      const pageKey = hrmsLaunchParams.get("corePage") || "entity-master";
-      return hrmsAllowedErpCorePages.has(pageKey) ? pageKey : "entity-master";
-    };
-    let erpCoreFrameHeightTimer = null;
-
-    function notifyErpCoreFrameHeight() {
-      if (!hrmsEmbeddedInErpCore || window.parent === window) return;
-      clearTimeout(erpCoreFrameHeightTimer);
-      erpCoreFrameHeightTimer = setTimeout(() => {
-        const content = document.querySelector(".content");
-        const height = Math.max(
-          document.documentElement.scrollHeight,
-          document.body.scrollHeight,
-          content ? content.scrollHeight : 0
-        );
-        window.parent.postMessage({ type: "indipet:erp-core-frame-height", height }, "*");
-      }, 40);
-    }
-
-    if (hrmsEmbeddedInErpCore) {
-      document.body.classList.add("erp-core-embed");
-    }
 
     function revealHrmsApp() {
       document.body.classList.remove("hrms-login-pending", "hrms-login-required");
-      if (!hrmsEmbeddedInErpCore) {
-        setTimeout(maybeShowPrimaryEntityPrompt, 0);
-      }
+      setTimeout(maybeShowPrimaryEntityPrompt, 0);
     }
 
     function hideHrmsAppForLogout() {
@@ -7699,13 +7630,8 @@
     const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
 
     const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
-    const hrmsMockApiBaseUrl = hrmsEmbeddedInErpCore
-      ? hrmsLaunchParams.get("hrmsApi") || "http://localhost:4318/api/mock-db"
-      : location.protocol.startsWith("http")
-        ? `${location.origin}/api/mock-db`
-        : "http://localhost:4318/api/mock-db";
     const hrmsMockApi = {
-      baseUrl: hrmsMockApiBaseUrl,
+      baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
       tables: ["entities", "locations", "employees", "attendance", "keyholders", "operating_contexts", "module_rows", "country_masters", "state_masters", "pincode_masters", "city_masters"]
     };
     const defaultCountryMasters = [
@@ -8366,12 +8292,6 @@
         } catch {}
       }
 
-      if (hrmsEmbeddedInErpCore) {
-        applyHrmsReserve(data || {});
-        activatePage(hrmsRequestedErpCorePage());
-        maybeShowPrimaryEntityPrompt();
-        return;
-      }
       applyHrmsReserve(data || {});
       rerenderHrmsActiveView();
       maybeShowPrimaryEntityPrompt();
@@ -8390,7 +8310,6 @@
         renderModule(activePage);
       }
       refreshIcons();
-      notifyErpCoreFrameHeight();
     }
 
     function updateHrmsDashboardSummary() {
@@ -10981,7 +10900,7 @@
 
     function setLocationFormHeader(mode) {
       const isEdit = mode === "edit";
-      setBreadcrumb([hrmsEmbeddedInErpCore ? "ERP" : "HRMS", hrmsEmbeddedInErpCore ? "ERP Core" : "Organization", "Sub Location Control Center", isEdit ? "Edit Location" : "Add New Location"]);
+      setBreadcrumb(["HRMS", "Organization", "Sub Location Control Center", isEdit ? "Edit Location" : "Add New Location"]);
       $("#pageTitle").textContent = isEdit ? "Edit Sub Location" : "Create New Sub Location";
       $("#pageDescription").textContent = isEdit
         ? "Update the existing base location record. Related location setup remains available in the Sub Location Control Center."
@@ -11020,7 +10939,6 @@
       closeMobileMenu();
       window.scrollTo({ top: 0, behavior: "smooth" });
       refreshIcons();
-      notifyErpCoreFrameHeight();
     }
 
     function setLocationStep(stepIndex) {
@@ -11364,7 +11282,7 @@
     }
 
     function setEntityFormHeader() {
-      setBreadcrumb([hrmsEmbeddedInErpCore ? "ERP" : "HRMS", hrmsEmbeddedInErpCore ? "ERP Core" : "Organization", "Entity Master", "Add New Entity"]);
+      setBreadcrumb(["HRMS", "Organization", "Entity Master", "Add New Entity"]);
       $("#pageTitle").textContent = "Add New Entity";
       $("#pageDescription").textContent = "Create a new legal or business entity that owns or operates locations.";
       $(".page-actions").classList.add("is-form-page");
@@ -11462,7 +11380,7 @@
       const isEdit = mode === "edit";
       const entityName = record?.legal_name || "Entity";
       const title = isView ? entityName : isEdit ? "Edit Entity" : "Add New Entity";
-      setBreadcrumb([hrmsEmbeddedInErpCore ? "ERP" : "HRMS", hrmsEmbeddedInErpCore ? "ERP Core" : "Organization", "Entity Master", title]);
+      setBreadcrumb(["HRMS", "Organization", "Entity Master", title]);
       $("#pageTitle").textContent = title;
       $("#pageDescription").textContent = isView
         ? `${record?.entity_id || ""} · Read-only entity profile. Use Edit to make changes.`
@@ -12049,9 +11967,7 @@
 
     function setPageHeader(parent, title, description, action, icon) {
       clearEntityViewHeaderActions();
-      const rootLabel = hrmsEmbeddedInErpCore ? "ERP" : "HRMS";
-      const parentLabel = hrmsEmbeddedInErpCore && parent === "Organization" ? "ERP Core" : parent;
-      setBreadcrumb(parent === "Dashboard" ? [rootLabel, "Dashboard"] : [rootLabel, parentLabel, title]);
+      setBreadcrumb(parent === "Dashboard" ? ["HRMS", "Dashboard"] : ["HRMS", parent, title]);
       $("#pageTitle").textContent = title;
       $("#pageDescription").textContent = description;
       $(".page-actions").classList.remove("is-form-page");
@@ -12957,16 +12873,6 @@
       if (!event.target.closest(".entity-table-status-action")) closeEntityStatusMenus();
       if (!event.target.closest("#entityViewStatusAction")) closeEntityViewStatusMenu();
     });
-
-    if (hrmsEmbeddedInErpCore) {
-      window.addEventListener("load", notifyErpCoreFrameHeight);
-      window.addEventListener("resize", notifyErpCoreFrameHeight);
-      if ("ResizeObserver" in window) {
-        new ResizeObserver(notifyErpCoreFrameHeight).observe(document.body);
-      } else {
-        setInterval(notifyErpCoreFrameHeight, 750);
-      }
-    }
 
     resetHrmsStaticDisplayData();
     loadHrmsReserve();
