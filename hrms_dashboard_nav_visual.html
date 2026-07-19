@@ -943,6 +943,30 @@
       padding: 30px;
     }
 
+    body.erp-core-embed {
+      background: var(--workspace);
+    }
+
+    body.erp-core-embed .hrms-login-screen,
+    body.erp-core-embed .sidebar,
+    body.erp-core-embed .topbar,
+    body.erp-core-embed .mobile-backdrop,
+    body.erp-core-embed #notificationDrawer,
+    body.erp-core-embed #drawerBackdrop {
+      display: none !important;
+    }
+
+    body.erp-core-embed .main-shell {
+      width: 100%;
+      margin-left: 0;
+    }
+
+    body.erp-core-embed .content {
+      width: 100%;
+      max-width: none;
+      padding: 24px;
+    }
+
     .page-header {
       display: flex;
       align-items: flex-start;
@@ -5434,11 +5458,8 @@
           </button>
           <div class="nav-children">
             <div class="nav-children-inner">
-              <button class="nav-child" data-page="entity-master">Entity Master</button>
-              <button class="nav-child" data-page="sub-location">Sub Location</button>
               <button class="nav-child" data-page="department-master">Department Master</button>
               <button class="nav-child" data-page="designation-master">Designation Master</button>
-              <button class="nav-child" data-page="role-manager">Role Master</button>
             </div>
           </div>
         </div>
@@ -6939,6 +6960,16 @@
   <script>
     const hrmsLaunchParams = new URLSearchParams(window.location.search);
     const hrmsOpenedFromErp = hrmsLaunchParams.get("from") === "erp";
+    const hrmsEmbeddedInErpCore = hrmsLaunchParams.get("embed") === "erp-core";
+    const hrmsAllowedErpCorePages = new Set(["entity-master", "sub-location", "role-manager"]);
+    const hrmsRequestedErpCorePage = () => {
+      const pageKey = hrmsLaunchParams.get("corePage") || "entity-master";
+      return hrmsAllowedErpCorePages.has(pageKey) ? pageKey : "entity-master";
+    };
+
+    if (hrmsEmbeddedInErpCore) {
+      document.body.classList.add("erp-core-embed");
+    }
 
     function revealHrmsApp() {
       document.body.classList.remove("hrms-login-pending", "hrms-login-required");
@@ -7633,8 +7664,13 @@
     const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
 
     const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
+    const hrmsMockApiBaseUrl = hrmsEmbeddedInErpCore
+      ? hrmsLaunchParams.get("hrmsApi") || "http://localhost:4318/api/mock-db"
+      : location.protocol.startsWith("http")
+        ? `${location.origin}/api/mock-db`
+        : "http://localhost:4318/api/mock-db";
     const hrmsMockApi = {
-      baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
+      baseUrl: hrmsMockApiBaseUrl,
       tables: ["entities", "locations", "employees", "attendance", "keyholders", "operating_contexts", "module_rows", "country_masters", "state_masters", "pincode_masters", "city_masters"]
     };
     const defaultCountryMasters = [
@@ -8298,6 +8334,9 @@
       applyHrmsReserve(data || {});
       rerenderHrmsActiveView();
       maybeShowPrimaryEntityPrompt();
+      if (hrmsEmbeddedInErpCore) {
+        activatePage(hrmsRequestedErpCorePage());
+      }
     }
 
     function rerenderHrmsActiveView() {
@@ -10903,7 +10942,7 @@
 
     function setLocationFormHeader(mode) {
       const isEdit = mode === "edit";
-      setBreadcrumb(["HRMS", "Organization", "Sub Location Control Center", isEdit ? "Edit Location" : "Add New Location"]);
+      setBreadcrumb([hrmsEmbeddedInErpCore ? "ERP" : "HRMS", hrmsEmbeddedInErpCore ? "ERP Core" : "Organization", "Sub Location Control Center", isEdit ? "Edit Location" : "Add New Location"]);
       $("#pageTitle").textContent = isEdit ? "Edit Sub Location" : "Create New Sub Location";
       $("#pageDescription").textContent = isEdit
         ? "Update the existing base location record. Related location setup remains available in the Sub Location Control Center."
@@ -10923,8 +10962,10 @@
       activePage = "sub-location-form";
       $$(".nav-single, .nav-child").forEach(button => button.classList.remove("is-active"));
       const target = $('.nav-child[data-page="sub-location"]');
-      target.classList.add("is-active");
-      openGroup(target.closest(".nav-group"), true);
+      if (target) {
+        target.classList.add("is-active");
+        openGroup(target.closest(".nav-group"), true);
+      }
       $("#dashboardView").classList.remove("is-active");
       $("#locationControlView").classList.remove("is-active");
       $("#moduleView").classList.remove("is-active");
@@ -11283,7 +11324,7 @@
     }
 
     function setEntityFormHeader() {
-      setBreadcrumb(["HRMS", "Organization", "Entity Master", "Add New Entity"]);
+      setBreadcrumb([hrmsEmbeddedInErpCore ? "ERP" : "HRMS", hrmsEmbeddedInErpCore ? "ERP Core" : "Organization", "Entity Master", "Add New Entity"]);
       $("#pageTitle").textContent = "Add New Entity";
       $("#pageDescription").textContent = "Create a new legal or business entity that owns or operates locations.";
       $(".page-actions").classList.add("is-form-page");
@@ -11297,8 +11338,10 @@
       activeEntityStep = 0;
       $$(".nav-single, .nav-child").forEach(button => button.classList.remove("is-active"));
       const target = $('.nav-child[data-page="entity-master"]');
-      target.classList.add("is-active");
-      openGroup(target.closest(".nav-group"), true);
+      if (target) {
+        target.classList.add("is-active");
+        openGroup(target.closest(".nav-group"), true);
+      }
       $("#dashboardView").classList.remove("is-active");
       $("#locationControlView").classList.remove("is-active");
       $("#locationFormView").classList.remove("is-active");
@@ -11379,7 +11422,7 @@
       const isEdit = mode === "edit";
       const entityName = record?.legal_name || "Entity";
       const title = isView ? entityName : isEdit ? "Edit Entity" : "Add New Entity";
-      setBreadcrumb(["HRMS", "Organization", "Entity Master", title]);
+      setBreadcrumb([hrmsEmbeddedInErpCore ? "ERP" : "HRMS", hrmsEmbeddedInErpCore ? "ERP Core" : "Organization", "Entity Master", title]);
       $("#pageTitle").textContent = title;
       $("#pageDescription").textContent = isView
         ? `${record?.entity_id || ""} · Read-only entity profile. Use Edit to make changes.`
@@ -11406,8 +11449,10 @@
       activeEntityStep = 0;
       $$(".nav-single, .nav-child").forEach(button => button.classList.remove("is-active"));
       const target = $('.nav-child[data-page="entity-master"]');
-      target.classList.add("is-active");
-      openGroup(target.closest(".nav-group"), true);
+      if (target) {
+        target.classList.add("is-active");
+        openGroup(target.closest(".nav-group"), true);
+      }
       $("#dashboardView").classList.remove("is-active");
       $("#locationControlView").classList.remove("is-active");
       $("#locationFormView").classList.remove("is-active");
@@ -11883,6 +11928,7 @@
     }
 
     function openGroup(groupElement, forceOpen = null) {
+      if (!groupElement) return;
       const parent = $(".nav-parent", groupElement);
       const children = $(".nav-children", groupElement);
       const shouldOpen = forceOpen === null ? !parent.classList.contains("is-open") : forceOpen;
@@ -11916,8 +11962,10 @@
         setPageHeader("Dashboard", "Operations Dashboard", "Monitor today's workforce, roster coverage, leave decisions and attendance exceptions across Indipet locations.", "Add Employee", "user-plus");
       } else if (pageKey === "sub-location") {
         const target = $('.nav-child[data-page="sub-location"]');
-        target.classList.add("is-active");
-        openGroup(target.closest(".nav-group"), true);
+        if (target) {
+          target.classList.add("is-active");
+          openGroup(target.closest(".nav-group"), true);
+        }
         $("#locationControlView").classList.add("is-active");
         setPageHeader(
           "Organization",
@@ -11961,7 +12009,9 @@
 
     function setPageHeader(parent, title, description, action, icon) {
       clearEntityViewHeaderActions();
-      setBreadcrumb(parent === "Dashboard" ? ["HRMS", "Dashboard"] : ["HRMS", parent, title]);
+      const rootLabel = hrmsEmbeddedInErpCore ? "ERP" : "HRMS";
+      const parentLabel = hrmsEmbeddedInErpCore && parent === "Organization" ? "ERP Core" : parent;
+      setBreadcrumb(parent === "Dashboard" ? [rootLabel, "Dashboard"] : [rootLabel, parentLabel, title]);
       $("#pageTitle").textContent = title;
       $("#pageDescription").textContent = description;
       $(".page-actions").classList.remove("is-form-page");
