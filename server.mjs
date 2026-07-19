@@ -36,6 +36,10 @@ const tableConfig = {
     key: "id",
     headers: ["id", "name", "locationId", "status", "keyholderEligible"]
   },
+  operating_contexts: {
+    key: "context_id",
+    headers: ["context_id", "primary_entity_id", "active_entity_id", "entity_name", "admin_name", "admin_phone", "status"]
+  },
   module_rows: {
     key: "row_id",
     headers: ["row_id", "pageKey", "cells"]

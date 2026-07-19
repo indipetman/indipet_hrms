@@ -3935,6 +3935,43 @@
       box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
     }
 
+    .modal.primary-entity-onboarding {
+      width: min(620px, 100%);
+    }
+
+    .primary-entity-onboarding .modal-body {
+      display: block;
+      padding: 22px;
+    }
+
+    .onboarding-copy {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .onboarding-points {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .onboarding-point {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .onboarding-point svg {
+      width: 17px;
+      height: 17px;
+      flex: 0 0 auto;
+      color: var(--primary);
+    }
+
     .modal.shift-policy-modal {
       width: min(760px, 100%);
       max-height: calc(100vh - 40px);
@@ -5904,7 +5941,7 @@
                 </button>
                 <button class="entity-step" type="button" data-entity-step="5">
                   <span class="entity-step-number">6</span>
-                  <span><span class="entity-step-name">Linked Locations</span><span class="entity-step-copy">Link existing locations</span></span>
+                  <span><span class="entity-step-name">Admin & Locations</span><span class="entity-step-copy">Company contact and mapping</span></span>
                 </button>
               </nav>
 
@@ -6102,8 +6139,18 @@
 
               <section class="entity-form-section" data-entity-section="5">
                 <div class="form-section-kicker">Step 6 of 6</div>
-                <h2 class="form-section-title">Linked Locations</h2>
-                <p class="form-section-description">Mapped Sub Locations are shown here after the entity is created. Mapping is managed from Sub Location, not from this workflow.</p>
+                <h2 class="form-section-title">Admin & Linked Locations</h2>
+                <p class="form-section-description">Capture the company admin contact, then review mapped Sub Locations after the entity is created.</p>
+                <div class="location-form-grid">
+                  <label class="location-form-field">
+                    <span class="location-form-label">Admin Name <span class="field-state entity-primary-admin-field-state">Required for Primary</span></span>
+                    <input name="admin_name" data-entity-field="admin_name" placeholder="Enter admin name">
+                  </label>
+                  <label class="location-form-field">
+                    <span class="location-form-label">Admin Phone <span class="field-state entity-primary-admin-field-state">Required for Primary</span></span>
+                    <input name="admin_phone" data-entity-field="admin_phone" inputmode="tel" placeholder="Enter admin phone number">
+                  </label>
+                </div>
                 <div class="entity-linked-list" id="entityLinkedLocations"></div>
               </section>
             </article>
@@ -6415,6 +6462,28 @@
       </div>
     </div>
   </aside>
+
+  <div class="modal-backdrop" id="primaryEntityPrompt" role="dialog" aria-modal="true" aria-labelledby="primaryEntityPromptTitle">
+    <div class="modal primary-entity-onboarding">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="primaryEntityPromptTitle">Create Primary Entity</h2>
+          <p class="card-subtitle">Start by creating the company that will own transactions.</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p class="onboarding-copy">No entity exists yet. Create the Primary Entity first so HRMS, ERP and future transactions have one company context to operate under.</p>
+        <div class="onboarding-points">
+          <div class="onboarding-point"><i data-lucide="building-2"></i><span>This becomes the root company for legal, GST, location and transaction ownership.</span></div>
+          <div class="onboarding-point"><i data-lucide="user-cog"></i><span>The last step captures the Admin name and phone number for this company context.</span></div>
+          <div class="onboarding-point"><i data-lucide="route"></i><span>Franchisee entities and locations can be added under this primary setup later.</span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="button primary" id="startPrimaryEntityCreate" type="button"><i data-lucide="plus"></i>Create Primary Entity</button>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-backdrop" id="recordModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal">
@@ -7319,6 +7388,8 @@
           pincode: detail.pincode || "",
           state: detail.state || "",
           country: detail.country || "India",
+          admin_name: detail.admin_name || "",
+          admin_phone: detail.admin_phone || "",
           commission_on_products: detail.commission_on_products || "0",
           commission_on_services: detail.commission_on_services || "0"
         };
@@ -7374,6 +7445,7 @@
     let selectedEntityId = null;
     let selectedEmployeeId = null;
     const attendancePageSize = 6;
+    let operatingContexts = [];
 
     const $ = (selector, scope = document) => scope.querySelector(selector);
     const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -7381,7 +7453,7 @@
     const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
     const hrmsMockApi = {
       baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
-      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows", "country_masters", "state_masters", "pincode_masters", "city_masters"]
+      tables: ["entities", "locations", "employees", "attendance", "keyholders", "operating_contexts", "module_rows", "country_masters", "state_masters", "pincode_masters", "city_masters"]
     };
     const defaultCountryMasters = [
       {
@@ -7652,11 +7724,44 @@
       return match;
     }
 
+    function normalizeOperatingContext(record = {}) {
+      const contextId = String(record.context_id || "default").trim();
+      if (!contextId) return null;
+      return {
+        context_id: contextId,
+        primary_entity_id: String(record.primary_entity_id || "").trim(),
+        active_entity_id: String(record.active_entity_id || "").trim(),
+        entity_name: String(record.entity_name || "").trim(),
+        admin_name: String(record.admin_name || "").trim(),
+        admin_phone: String(record.admin_phone || "").trim(),
+        status: record.status || "Active"
+      };
+    }
+
+    function setOperatingEntityContext(record = {}) {
+      if (!record.entity_id) return;
+      const existingPrimaryId = operatingContexts.find(context => context.context_id === "default")?.primary_entity_id || "";
+      const primaryEntityId = record.entity_role === "Primary" ? record.entity_id : existingPrimaryId;
+      const nextContext = {
+        context_id: "default",
+        primary_entity_id: primaryEntityId,
+        active_entity_id: record.entity_id,
+        entity_name: record.legal_name || "",
+        admin_name: record.admin_name || "",
+        admin_phone: record.admin_phone || "",
+        status: "Active"
+      };
+      const contextIndex = operatingContexts.findIndex(context => context.context_id === "default");
+      if (contextIndex >= 0) operatingContexts[contextIndex] = nextContext;
+      else operatingContexts.push(nextContext);
+    }
+
     function resetHrmsStaticDisplayData() {
       attendanceRecords.length = 0;
       keyholderEmployees.length = 0;
       subLocations.length = 0;
       weeklyData.length = 0;
+      operatingContexts = [];
       selectedLocationId = null;
       clearObject(parentEntities);
       clearObject(entityMasterDetails);
@@ -7678,6 +7783,7 @@
       pincodeMasters = reservePincodeMasters.length ? reservePincodeMasters : [...defaultPincodeMasters];
       const reserveCityMasters = (data.city_masters || []).map(normalizeCityMaster).filter(Boolean);
       cityMasters = reserveCityMasters.length ? reserveCityMasters : [...defaultCityMasters];
+      operatingContexts = (data.operating_contexts || []).map(normalizeOperatingContext).filter(Boolean);
       populateCountryMasterSelects();
       populateStateMasterSelects();
 
@@ -7705,6 +7811,10 @@
         };
         parentEntities[entity.entity_id] = entity.legal_name || entity.entity_id;
       });
+      if (!operatingContexts.length) {
+        const primaryRecord = entityRecords().find(record => record.entity_role === "Primary") || entityRecords()[0];
+        if (primaryRecord) setOperatingEntityContext(primaryRecord);
+      }
 
       (data.locations || []).forEach(location => {
         if (!location.id) return;
@@ -7831,6 +7941,15 @@
         })),
         attendance: attendanceRecords,
         keyholders: keyholderEmployees,
+        operating_contexts: operatingContexts.map(context => ({
+          context_id: context.context_id,
+          primary_entity_id: context.primary_entity_id,
+          active_entity_id: context.active_entity_id,
+          entity_name: context.entity_name,
+          admin_name: context.admin_name,
+          admin_phone: context.admin_phone,
+          status: context.status || "Active"
+        })),
         country_masters: countryMasters.map(country => ({
           country_code: country.country_code,
           country_name: country.country_name,
@@ -7906,6 +8025,7 @@
 
       applyHrmsReserve(data || {});
       rerenderHrmsActiveView();
+      maybeShowPrimaryEntityPrompt();
     }
 
     function rerenderHrmsActiveView() {
@@ -10505,6 +10625,8 @@
         state: "",
         gst_state_code: "",
         country: "India",
+        admin_name: "",
+        admin_phone: "",
         commission_on_products: "0",
         commission_on_services: "0",
         status: "Active"
@@ -10550,6 +10672,7 @@
         field.value = accessRecord[key] || (key === "login_status" ? "Active" : "");
       });
       updateEntityAccessState();
+      updateEntityAdminContactState();
       renderEntityLinkedLocations();
       setEntityStep(0);
     }
@@ -10614,6 +10737,19 @@
       }
 
       refreshIcons();
+    }
+
+    function updateEntityAdminContactState() {
+      const entityRole = $('[data-entity-field="entity_role"]').value;
+      const isPrimary = entityRole === "Primary";
+      $$(".entity-primary-admin-field-state").forEach(state => {
+        state.textContent = isPrimary ? "Required for Primary" : "Optional";
+        state.classList.toggle("required", isPrimary);
+      });
+      $$('[data-entity-field="admin_name"], [data-entity-field="admin_phone"]').forEach(field => {
+        field.required = isPrimary;
+        if (!isPrimary) field.removeAttribute("aria-invalid");
+      });
     }
 
     function collectEntityFormRecord() {
@@ -10808,7 +10944,7 @@
       }
     }
 
-    function openEntityForm(mode = "create", entityId = null) {
+    function openEntityForm(mode = "create", entityId = null, seedRecord = null) {
       entityFormMode = mode;
       activeEntityRecordId = entityId;
       activePage = mode === "create" ? "entity-master-form" : mode === "edit" ? "entity-master-edit" : "entity-master-view";
@@ -10824,7 +10960,7 @@
       $("#entityFormView").classList.remove("is-active");
       $("#moduleView").classList.remove("is-active");
       $("#entityFormView").classList.add("is-active");
-      const record = mode === "create" ? emptyEntityRecord() : entityRecordById(entityId);
+      const record = mode === "create" ? { ...emptyEntityRecord(), ...(seedRecord || {}) } : entityRecordById(entityId);
       setEntityFormHeader(mode, record);
       populateEntityForm(record || emptyEntityRecord());
       setEntityFormReadOnly(mode === "view");
@@ -10941,6 +11077,7 @@
         gstRegistered: Boolean(finalRecord.gstin)
       };
       parentEntities[entityId] = finalRecord.legal_name;
+      setOperatingEntityContext(finalRecord);
 
       pageConfig["entity-master"].values = getEntitySummaryValues();
 
@@ -10977,6 +11114,8 @@
         .forEach(location => {
           location.parent = record.legal_name;
         });
+      const currentContext = operatingContexts.find(context => context.active_entity_id === activeEntityRecordId || context.primary_entity_id === activeEntityRecordId);
+      if (currentContext) setOperatingEntityContext({ ...record, entity_id: activeEntityRecordId });
       pageConfig["entity-master"].values = getEntitySummaryValues();
       selectedEntityId = activeEntityRecordId;
       persistHrmsReserve();
@@ -10996,6 +11135,7 @@
       pageConfig["entity-master"].rows = pageConfig["entity-master"].rows.filter(row => row[0] !== entityId);
       delete entityMasterDetails[entityId];
       delete parentEntities[entityId];
+      operatingContexts = operatingContexts.filter(context => context.active_entity_id !== entityId && context.primary_entity_id !== entityId);
       pageConfig["entity-master"].values = getEntitySummaryValues();
       activeEntityRecordId = null;
       entityFormMode = "create";
@@ -11325,6 +11465,24 @@
       showToast.timer = setTimeout(() => $("#toast").classList.remove("is-visible"), 2600);
     }
 
+    function openPrimaryEntityPrompt() {
+      if (!$("#primaryEntityPrompt")) return;
+      $("#primaryEntityPrompt").classList.add("is-open");
+      refreshIcons();
+    }
+
+    function closePrimaryEntityPrompt() {
+      $("#primaryEntityPrompt")?.classList.remove("is-open");
+    }
+
+    function maybeShowPrimaryEntityPrompt() {
+      if (pageConfig["entity-master"].rows.length) {
+        closePrimaryEntityPrompt();
+        return;
+      }
+      openPrimaryEntityPrompt();
+    }
+
     function openModal() {
       $("#recordModal").classList.add("is-open");
       setTimeout(() => $("#recordName").focus(), 50);
@@ -11358,6 +11516,15 @@
 
     $$(".nav-parent").forEach(parent => {
       parent.addEventListener("click", () => openGroup(parent.closest(".nav-group")));
+    });
+
+    $("#startPrimaryEntityCreate")?.addEventListener("click", () => {
+      closePrimaryEntityPrompt();
+      openEntityForm("create", null, {
+        entity_role: "Primary",
+        status: "Active",
+        country: defaultCountryName()
+      });
     });
 
     $$("[data-page]").forEach(button => {
@@ -11908,7 +12075,10 @@
       }
     });
 
-    $("#cancelEntityForm").addEventListener("click", () => activatePage("entity-master"));
+    $("#cancelEntityForm").addEventListener("click", () => {
+      activatePage("entity-master");
+      if (!pageConfig["entity-master"].rows.length) setTimeout(maybeShowPrimaryEntityPrompt, 0);
+    });
     $("#backEntityStep").addEventListener("click", () => setEntityStep(activeEntityStep - 1));
     $("#nextEntityStep").addEventListener("click", () => setEntityStep(activeEntityStep + 1));
     $("#entityStepper").addEventListener("click", event => {
@@ -11926,10 +12096,14 @@
           syncEntityStateCode();
           populateCityMasterSelect("entity");
         }
+        if (field.dataset.entityField === "entity_role") updateEntityAdminContactState();
       });
       field.addEventListener("change", () => {
         field.removeAttribute("aria-invalid");
-        if (field.dataset.entityField === "entity_role") updateEntityAccessState();
+        if (field.dataset.entityField === "entity_role") {
+          updateEntityAccessState();
+          updateEntityAdminContactState();
+        }
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin();
         if (field.dataset.entityField === "pincode") applyPincodeAddress("entity", true);
         if (field.dataset.entityField === "state") {
