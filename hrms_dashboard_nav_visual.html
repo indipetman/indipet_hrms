@@ -5937,9 +5937,8 @@
                     <span class="location-form-label">Entity Role <span class="field-state required">Required</span></span>
                     <select name="entity_role" data-entity-field="entity_role" required>
                       <option value="">Select entity role</option>
-                      <option value="HQ">HQ</option>
+                      <option value="Primary">Primary</option>
                       <option value="Franchisee">Franchisee</option>
-                      <option value="Branch">Branch</option>
                     </select>
                   </label>
                   <label class="location-form-field">
@@ -6045,13 +6044,13 @@
               <section class="entity-form-section" data-entity-section="4">
                 <div class="form-section-kicker">Step 5 of 6</div>
                 <h2 class="form-section-title">ERP Login Access</h2>
-                <p class="form-section-description">Configure entity-level ERP access for a Franchisee or Branch. The selected Role Master record determines the access level.</p>
+                <p class="form-section-description">Configure entity-level ERP access for a Franchisee. The selected Role Master record determines the access level.</p>
 
                 <div class="entity-access-context is-disabled" id="entityAccessContext">
                   <i data-lucide="building-2"></i>
                   <div>
                     <div class="entity-access-context-title" id="entityAccessContextTitle">Select an entity role in Overview</div>
-                    <div class="entity-access-context-copy" id="entityAccessContextCopy">Login fields become available when the entity role is Franchisee or Branch.</div>
+                    <div class="entity-access-context-copy" id="entityAccessContextCopy">Login fields become available when the entity role is Franchisee.</div>
                   </div>
                 </div>
 
@@ -6949,7 +6948,7 @@
     };
 
     const entityMasterDetails = {
-      IPL101: { entity_role: "HQ", status: "Active", gstRegistered: true, gstin: "19AAACI1010P1Z5", gst_type: "Regular", pan_number: "AAACI1010P", cin_number: "U74999WB2020PTC101010", phone: "98300 44210", email: "admin@indipet.in", address_line1: "12th Floor, Indipet Corporate Office, Salt Lake Sector V", city: "Kolkata", pincode: "700091", state: "West Bengal", country: "India", commission_on_products: "0", commission_on_services: "0", user_id: "", role_id: "", login_status: "Inactive" },
+      IPL101: { entity_role: "Primary", status: "Active", gstRegistered: true, gstin: "19AAACI1010P1Z5", gst_type: "Regular", pan_number: "AAACI1010P", cin_number: "U74999WB2020PTC101010", phone: "98300 44210", email: "admin@indipet.in", address_line1: "12th Floor, Indipet Corporate Office, Salt Lake Sector V", city: "Kolkata", pincode: "700091", state: "West Bengal", country: "India", commission_on_products: "0", commission_on_services: "0", user_id: "", role_id: "", login_status: "Inactive" },
       SCP102: { entity_role: "Franchisee", status: "Active", gstRegistered: true, gstin: "19SCP1020P1Z8", gst_type: "Regular", pan_number: "SCPPS1020P", cin_number: "", phone: "98300 44211", email: "southcorona@indipet.in", address_line1: "Lake Gardens", city: "Kolkata", pincode: "700045", state: "West Bengal", country: "India", commission_on_products: "8", commission_on_services: "12", user_id: "scp102.admin", role_id: "ROL-STORE-MANAGER", login_status: "Active" },
       PCP103: { entity_role: "Franchisee", status: "Active", gstRegistered: true, gstin: "19PCP1030F1Z4", gst_type: "Regular", pan_number: "PCPFP1030F", cin_number: "", phone: "90070 77890", email: "petsco@indipet.in", address_line1: "Newtown", city: "Kolkata", pincode: "700156", state: "West Bengal", country: "India", commission_on_products: "8", commission_on_services: "12", user_id: "pcp103.admin", role_id: "ROL-STORE-MANAGER", login_status: "Active" },
       HPR104: { entity_role: "Franchisee", status: "Active", gstRegistered: true, gstin: "19HPR1040C1Z2", gst_type: "Regular", pan_number: "HPRCP1040C", cin_number: "U52399WB2024PTC104104", phone: "81001 66220", email: "happypaws@indipet.in", address_line1: "Rajarhat", city: "Kolkata", pincode: "700135", state: "West Bengal", country: "India", commission_on_products: "8", commission_on_services: "12", user_id: "hpr104.admin", role_id: "ROL-STORE-MANAGER", login_status: "Active" }
@@ -7122,7 +7121,7 @@
       "entity-master": {
         title: "Entity Master",
         parent: "Organization",
-        description: "Manage Indipet HQ and franchisee legal entities, constitutions and business roles.",
+        description: "Manage primary and franchisee legal entities, constitutions and business roles.",
         action: "Add New Entity",
         icon: "plus",
         labels: ["Total", "Active", "Location mapped / Total", "Franchisee", "GST Registered / Total"],
@@ -7136,7 +7135,7 @@
           { icon: "file-check", tone: "amber" }
         ],
         columns: ["Entity ID", "Legal Name", "Constitution", "Role", "Status"],
-        rows: [["IPL101", "Indipet Private Limited", "Company", "HQ", "Active"], ["SCP102", "South Corona Pet Care", "Proprietorship", "Franchisee", "Active"], ["PCP103", "Pets & Co Partnership Firm", "Partnership", "Franchisee", "Active"], ["HPR104", "Happy Paws Retail Pvt Ltd", "Company", "Franchisee", "Active"]]
+        rows: [["IPL101", "Indipet Private Limited", "Company", "Primary", "Active"], ["SCP102", "South Corona Pet Care", "Proprietorship", "Franchisee", "Active"], ["PCP103", "Pets & Co Partnership Firm", "Partnership", "Franchisee", "Active"], ["HPR104", "Happy Paws Retail Pvt Ltd", "Company", "Franchisee", "Active"]]
       },
       "location-master": { title: "Location Master", parent: "Organization", description: "Maintain office and store locations, operating status, parent entity and service readiness.", action: "Add Location", icon: "map-pin", labels: ["Locations", "Stores", "HQ Offices"], values: ["5", "4", "1"], columns: ["Location ID", "Location", "Parent Entity", "Type", "Status"], rows: [["IPL101-SLT201", "Corporate HQ", "IPL101", "Office", "Active"], ["SCP102-DSP202", "Deshapriya Park", "SCP102", "Store", "Active"], ["SCP102-LKG203", "Indipet Care Lake Gardens", "SCP102", "Store", "Active"], ["PCP103-NTW204", "Newtown", "PCP103", "Store", "Active"], ["HPR104-RJT205", "Rajarhat", "HPR104", "Store", "Pending"]] },
       "department-master": genericPage("Department Master", "Organization", "Manage functional departments used by employees, services and reporting.", "Add Department", ["Departments", "Employees Mapped", "Service Linked"], ["8", "42", "4"], ["Department ID", "Department", "Head", "Location Scope", "Status"]),
@@ -7481,11 +7480,12 @@
 
       (data.entities || []).forEach(entity => {
         if (!entity.entity_id) return;
+        const entityRole = entity.entity_role === "HQ" || entity.entity_role === "Branch" ? "Primary" : entity.entity_role || "";
         pageConfig["entity-master"].rows.push([
           entity.entity_id,
           entity.legal_name || "",
           entity.entity_type || "",
-          entity.entity_role || "",
+          entityRole,
           entity.status || "Active"
         ]);
         const details = entity.details && typeof entity.details === "object" ? entity.details : {};
@@ -7496,7 +7496,7 @@
           entity_id: entity.entity_id,
           legal_name: entity.legal_name || "",
           entity_type: entity.entity_type || "",
-          entity_role: entity.entity_role || "",
+          entity_role: entityRole,
           status: entity.status || "Active",
           gstRegistered: Boolean(details.gstRegistered || details.gstin)
         };
@@ -8705,7 +8705,7 @@
         <section class="entity-filter-card" aria-label="Filter Entity Master">
           <div class="entity-filter-title">Filter Entity Master</div>
           <div class="entity-filter-grid">
-            <div class="entity-filter-field"><label for="entityRoleFilter">Entity Role</label><select id="entityRoleFilter"><option value="all">All Roles</option><option value="HQ">HQ</option><option value="Franchisee">Franchisee</option><option value="Branch">Branch</option></select></div>
+            <div class="entity-filter-field"><label for="entityRoleFilter">Entity Role</label><select id="entityRoleFilter"><option value="all">All Roles</option><option value="Primary">Primary</option><option value="Franchisee">Franchisee</option></select></div>
             <div class="entity-filter-field"><label for="entityConstitutionFilter">Constitution</label><select id="entityConstitutionFilter"><option value="all">All Constitutions</option><option value="Company">Company</option><option value="Proprietorship">Proprietorship</option><option value="Partnership">Partnership</option></select></div>
             <div class="entity-filter-field"><label for="entityGstFilter">GST Registration</label><select id="entityGstFilter"><option value="all">All GST Status</option><option value="registered">GST Registered</option><option value="not_registered">Not Registered</option></select></div>
             <div class="entity-filter-field"><label for="entityStatusFilter">Status</label><select id="entityStatusFilter"><option value="all">All Statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
@@ -10281,7 +10281,7 @@
     }
 
     function generateEntityId(record) {
-      const prefix = record.entity_role === "HQ" ? "IPL" : record.entity_type === "Partnership" ? "PCP" : record.entity_type === "Proprietorship" ? "SCP" : "HPR";
+      const prefix = record.entity_role === "Primary" ? "IPL" : record.entity_type === "Partnership" ? "PCP" : record.entity_type === "Proprietorship" ? "SCP" : "HPR";
       const existingNumbers = pageConfig["entity-master"].rows
         .map(row => Number(String(row[0]).replace(/\D/g, "")))
         .filter(Number.isFinite);
@@ -10332,7 +10332,7 @@
 
     function entityLoginAccessRequired() {
       const entityRole = $('[data-entity-field="entity_role"]').value;
-      return entityRole === "Franchisee" || entityRole === "Branch";
+      return entityRole === "Franchisee";
     }
 
     function resetEntityAccessFields() {
@@ -10372,7 +10372,7 @@
         resetEntityAccessFields();
       } else {
         contextTitle.textContent = "Select an entity role in Overview";
-        contextCopy.textContent = "Login fields become available when the entity role is Franchisee or Branch.";
+        contextCopy.textContent = "Login fields become available when the entity role is Franchisee.";
         resetEntityAccessFields();
       }
 
@@ -10665,7 +10665,7 @@
       if (missing.length) {
         return {
           valid: false,
-          message: "Complete all required ERP login access fields for this Franchisee or Branch entity.",
+          message: "Complete all required ERP login access fields for this Franchisee entity.",
           fields: missing
         };
       }
