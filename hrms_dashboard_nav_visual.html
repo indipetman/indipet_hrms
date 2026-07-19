@@ -1627,26 +1627,27 @@
     }
 
     .module-summary.entity-summary-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
     }
 
     .summary-card.standard-summary-card {
-      min-height: 128px;
+      min-height: 94px;
       display: grid;
-      grid-template-columns: 40px minmax(0, 1fr);
+      grid-template-columns: 36px minmax(0, 1fr);
       align-content: center;
       align-items: center;
-      gap: 13px;
-      padding: 18px;
+      gap: 12px;
+      padding: 17px;
     }
 
     .standard-summary-icon {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       display: grid;
       place-items: center;
-      border-radius: 11px;
+      border-radius: 50%;
       background: var(--primary-soft);
       color: var(--primary);
     }
@@ -1667,8 +1668,8 @@
     }
 
     .standard-summary-icon svg {
-      width: 19px;
-      height: 19px;
+      width: 18px;
+      height: 18px;
       stroke-width: 1.8;
     }
 
@@ -4877,7 +4878,7 @@
       }
 
       .module-summary.entity-summary-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       .dashboard-main {
@@ -4973,7 +4974,7 @@
       }
 
       .module-summary.entity-summary-grid {
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .location-kpis {
@@ -5067,6 +5068,11 @@
       }
 
       .location-kpi {
+        min-height: 88px;
+        padding: 14px;
+      }
+
+      .summary-card.standard-summary-card {
         min-height: 88px;
         padding: 14px;
       }
