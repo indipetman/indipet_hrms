@@ -391,6 +391,20 @@ const attendanceRecords = [
       "support": genericPage("Help & Support", "Control", "Find process guidance, operating handbooks and developer support resources.", "Create Ticket", ["Open Tickets", "Knowledge Articles", "System Status"], ["2", "18", "Active"], ["Resource", "Category", "Updated", "Owner", "Status"])
     };
 
+    function resetHrmsPrototypeTestData() {
+      attendanceRecords.length = 0;
+      keyholderEmployees.length = 0;
+      Object.values(pageConfig).forEach(config => {
+        config.values = config.labels.map(() => "0");
+        config.rows = [];
+      });
+      pageConfig["location-master"].values = ["0", "0", "0"];
+      pageConfig["roster"].values = ["0", "0", "0", "0", "0"];
+      pageConfig["employee-master"].values = ["0", "0", "0"];
+    }
+
+    resetHrmsPrototypeTestData();
+
     function genericPage(title, parent, description, action, labels, values, columns) {
       const statuses = ["Active", "Approved", "Pending", "Draft", "Inactive"];
       const locations = ["Corporate HQ", "Lake Gardens", "Newtown", "Rajarhat"];
