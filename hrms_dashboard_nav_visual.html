@@ -6550,7 +6550,7 @@
         </div>
       </div>
       <div class="modal-body">
-        <p class="onboarding-copy">No entity exists yet. Create the Primary Entity first so HRMS, ERP and future transactions have one company context to operate under.</p>
+        <p class="onboarding-copy">No Primary Entity exists yet. Create the Primary Entity first so HRMS, ERP and future transactions have one company context to operate under.</p>
         <div class="onboarding-points">
           <div class="onboarding-point"><i data-lucide="building-2"></i><span>This becomes the root company for legal, GST, location and transaction ownership.</span></div>
           <div class="onboarding-point"><i data-lucide="user-cog"></i><span>The last step captures the Admin name and phone number for this company context.</span></div>
@@ -10616,6 +10616,7 @@
     }
 
     function openLocationForm(mode) {
+      if (mode === "create" && blockAddUntilPrimaryEntity("add locations")) return;
       locationFormMode = mode;
       editingLocationId = mode === "edit" ? selectedLocationId : null;
       activePage = "sub-location-form";
@@ -11100,6 +11101,14 @@
         };
       }
 
+      if (!hasPrimaryEntity() && record.entity_role !== "Primary") {
+        return {
+          valid: false,
+          message: "Create the Primary Entity first. Franchisee entities can be added after the primary company exists.",
+          fields: [$('[data-entity-field="entity_role"]')]
+        };
+      }
+
       const emailField = $('[data-entity-field="email"]');
       if (record.email && !emailField.validity.valid) {
         return {
@@ -11254,6 +11263,7 @@
     }
 
     function openEmployeeForm() {
+      if (blockAddUntilPrimaryEntity("add employees")) return;
       activePage = "employee-master-form";
       $$(".nav-single, .nav-child").forEach(button => button.classList.remove("is-active"));
       $('.nav-single[data-page="employee-master"]').classList.add("is-active");
@@ -11577,11 +11587,31 @@
     }
 
     function maybeShowPrimaryEntityPrompt() {
-      if (pageConfig["entity-master"].rows.length) {
+      if (hasPrimaryEntity()) {
         closePrimaryEntityPrompt();
         return;
       }
       openPrimaryEntityPrompt();
+    }
+
+    function hasPrimaryEntity() {
+      return pageConfig["entity-master"].rows.some(row => row[3] === "Primary");
+    }
+
+    function openPrimaryEntityCreateForm() {
+      closePrimaryEntityPrompt();
+      openEntityForm("create", null, {
+        entity_role: "Primary",
+        status: "Active",
+        country: defaultCountryName()
+      });
+    }
+
+    function blockAddUntilPrimaryEntity(actionName = "add records") {
+      if (hasPrimaryEntity()) return false;
+      showToast(`Create the Primary Entity before you ${actionName}.`);
+      openPrimaryEntityPrompt();
+      return true;
     }
 
     function openModal() {
@@ -11620,12 +11650,10 @@
     });
 
     $("#startPrimaryEntityCreate")?.addEventListener("click", () => {
-      closePrimaryEntityPrompt();
-      openEntityForm("create", null, {
-        entity_role: "Primary",
-        status: "Active",
-        country: defaultCountryName()
-      });
+      openPrimaryEntityCreateForm();
+    });
+    $("#primaryEntityPrompt")?.addEventListener("click", event => {
+      if (event.target === $("#primaryEntityPrompt")) closePrimaryEntityPrompt();
     });
 
     $$("[data-page]").forEach(button => {
@@ -11649,6 +11677,10 @@
     $("#drawerBackdrop").addEventListener("click", closeDrawer);
     $("#primaryAction").addEventListener("click", () => {
       if (activePage === "entity-master") {
+        if (!hasPrimaryEntity()) {
+          openPrimaryEntityCreateForm();
+          return;
+        }
         openEntityForm();
         return;
       }
@@ -11661,6 +11693,7 @@
         return;
       }
       if (activePage === "employee-master") {
+        if (blockAddUntilPrimaryEntity("add employees")) return;
         openEmployeeForm();
         return;
       }
@@ -11669,6 +11702,7 @@
         return;
       }
       if (activePage === "sub-location") {
+        if (blockAddUntilPrimaryEntity("add locations")) return;
         openLocationForm("create");
         return;
       }
@@ -11677,6 +11711,7 @@
         return;
       }
       if (activePage === "roster") {
+        if (blockAddUntilPrimaryEntity("generate rosters")) return;
         openRosterGenerateModal();
         return;
       }
@@ -11684,6 +11719,7 @@
         activatePage("roster");
         return;
       }
+      if (blockAddUntilPrimaryEntity("add records")) return;
       openModal();
     });
 
@@ -11726,7 +11762,10 @@
       }
     });
 
-    $("#quickAdd").addEventListener("click", openModal);
+    $("#quickAdd").addEventListener("click", () => {
+      if (blockAddUntilPrimaryEntity("add records")) return;
+      openModal();
+    });
     $$(".close-modal").forEach(button => button.addEventListener("click", closeModal));
     $("#recordModal").addEventListener("click", event => {
       if (event.target === $("#recordModal")) closeModal();
@@ -11734,6 +11773,7 @@
 
     $("#recordForm").addEventListener("submit", event => {
       event.preventDefault();
+      if (blockAddUntilPrimaryEntity("add records")) return;
       const name = $("#recordName").value.trim();
       closeModal();
       event.target.reset();
@@ -12147,6 +12187,7 @@
     $("#locationForm").addEventListener("submit", event => {
       event.preventDefault();
       clearLocationFormError();
+      if (locationFormMode !== "edit" && blockAddUntilPrimaryEntity("add locations")) return;
       const record = collectLocationFormRecord();
       const validation = validateLocationRecord(record);
       if (!validation.valid) {
@@ -12185,7 +12226,7 @@
 
     $("#cancelEntityForm").addEventListener("click", () => {
       activatePage("entity-master");
-      if (!pageConfig["entity-master"].rows.length) setTimeout(maybeShowPrimaryEntityPrompt, 0);
+      if (!hasPrimaryEntity()) setTimeout(maybeShowPrimaryEntityPrompt, 0);
     });
     $("#backEntityStep").addEventListener("click", () => setEntityStep(activeEntityStep - 1));
     $("#nextEntityStep").addEventListener("click", () => setEntityStep(activeEntityStep + 1));
@@ -12284,6 +12325,7 @@
         ]);
         return;
       }
+      if (blockAddUntilPrimaryEntity("add employees")) return;
       createEmployeeRecord({ ...record, status: "Draft" }, true);
     });
     $("#employeeForm").addEventListener("submit", event => {
@@ -12297,6 +12339,7 @@
         showEmployeeFormError(validation.message, validation.fields);
         return;
       }
+      if (blockAddUntilPrimaryEntity("add employees")) return;
       try {
         createEmployeeRecord(record);
       } catch (error) {
