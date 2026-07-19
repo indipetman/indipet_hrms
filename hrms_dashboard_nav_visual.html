@@ -5514,16 +5514,16 @@
           </button>
           <div class="profile-menu-wrap" id="profileMenuWrap">
             <button class="profile-button" id="profileButton" type="button" title="Account" aria-haspopup="menu" aria-expanded="false" aria-controls="profileMenu">
-              <span class="avatar">VA</span>
+              <span class="avatar" id="profileAvatar">VA</span>
               <span class="profile-copy">
-                <span class="profile-name">Vikram Admin</span>
-                <span class="profile-role">HR & Operations</span>
+                <span class="profile-name" id="profileName">Vikram Admin</span>
+                <span class="profile-role" id="profileRole">HR & Operations</span>
               </span>
             </button>
             <div class="profile-menu" id="profileMenu" role="menu" hidden>
               <div class="profile-menu-header">
-                <div class="profile-menu-name">Vikram Admin</div>
-                <div class="profile-menu-role">HR & Operations</div>
+                <div class="profile-menu-name" id="profileMenuName">Vikram Admin</div>
+                <div class="profile-menu-role" id="profileMenuRole">HR & Operations</div>
               </div>
               <button class="profile-menu-action" id="logoutButton" type="button" role="menuitem">
                 <i data-lucide="log-out"></i>
@@ -6019,7 +6019,7 @@
                 </button>
                 <button class="entity-step" type="button" data-entity-step="5">
                   <span class="entity-step-number">6</span>
-                  <span><span class="entity-step-name">Admin & Locations</span><span class="entity-step-copy">Company contact and mapping</span></span>
+                  <span><span class="entity-step-name">Linked Locations</span><span class="entity-step-copy">Location mapping</span></span>
                 </button>
               </nav>
 
@@ -6165,7 +6165,7 @@
               <section class="entity-form-section" data-entity-section="4">
                 <div class="form-section-kicker">Step 5 of 6</div>
                 <h2 class="form-section-title">ERP Login Access</h2>
-                <p class="form-section-description">Configure entity-level ERP access for a Franchisee. The selected Role Master record determines the access level.</p>
+                <p class="form-section-description">Capture the Primary admin identity or configure entity-level ERP access for a Franchisee.</p>
 
                 <div class="entity-access-context is-disabled" id="entityAccessContext">
                   <i data-lucide="building-2"></i>
@@ -6173,6 +6173,17 @@
                     <div class="entity-access-context-title" id="entityAccessContextTitle">Select an entity role in Overview</div>
                     <div class="entity-access-context-copy" id="entityAccessContextCopy">Login fields become available when the entity role is Franchisee.</div>
                   </div>
+                </div>
+
+                <div class="location-form-grid">
+                  <label class="location-form-field">
+                    <span class="location-form-label">Admin Name <span class="field-state entity-primary-admin-field-state">Required for Primary</span></span>
+                    <input name="admin_name" data-entity-field="admin_name" placeholder="Enter admin name">
+                  </label>
+                  <label class="location-form-field">
+                    <span class="location-form-label">Admin Phone <span class="field-state entity-primary-admin-field-state">Required for Primary</span></span>
+                    <input name="admin_phone" data-entity-field="admin_phone" inputmode="tel" placeholder="Enter admin phone number">
+                  </label>
                 </div>
 
                 <fieldset class="entity-access-fieldset" id="entityAccessFieldset" disabled>
@@ -6217,18 +6228,8 @@
 
               <section class="entity-form-section" data-entity-section="5">
                 <div class="form-section-kicker">Step 6 of 6</div>
-                <h2 class="form-section-title">Admin & Linked Locations</h2>
-                <p class="form-section-description">Capture the company admin contact, then review mapped Sub Locations after the entity is created.</p>
-                <div class="location-form-grid">
-                  <label class="location-form-field">
-                    <span class="location-form-label">Admin Name <span class="field-state entity-primary-admin-field-state">Required for Primary</span></span>
-                    <input name="admin_name" data-entity-field="admin_name" placeholder="Enter admin name">
-                  </label>
-                  <label class="location-form-field">
-                    <span class="location-form-label">Admin Phone <span class="field-state entity-primary-admin-field-state">Required for Primary</span></span>
-                    <input name="admin_phone" data-entity-field="admin_phone" inputmode="tel" placeholder="Enter admin phone number">
-                  </label>
-                </div>
+                <h2 class="form-section-title">Linked Locations</h2>
+                <p class="form-section-description">Mapped Sub Locations are shown here after the entity is created. Mapping is managed from Sub Location, not from this workflow.</p>
                 <div class="entity-linked-list" id="entityLinkedLocations"></div>
               </section>
             </article>
@@ -6553,7 +6554,7 @@
         <p class="onboarding-copy">No Primary Entity exists yet. Create the Primary Entity first so HRMS, ERP and future transactions have one company context to operate under.</p>
         <div class="onboarding-points">
           <div class="onboarding-point"><i data-lucide="building-2"></i><span>This becomes the root company for legal, GST, location and transaction ownership.</span></div>
-          <div class="onboarding-point"><i data-lucide="user-cog"></i><span>The last step captures the Admin name and phone number for this company context.</span></div>
+          <div class="onboarding-point"><i data-lucide="user-cog"></i><span>The ERP Login Access step captures the Admin name and phone number for this company context.</span></div>
           <div class="onboarding-point"><i data-lucide="route"></i><span>Franchisee entities and locations can be added under this primary setup later.</span></div>
         </div>
       </div>
@@ -7823,6 +7824,23 @@
       };
     }
 
+    function initialsFromName(name) {
+      const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "VA";
+      return parts.slice(0, 2).map(part => part[0]).join("").toUpperCase();
+    }
+
+    function renderProfileFromOperatingContext() {
+      const context = operatingContexts.find(item => item.context_id === "default") || {};
+      const profileName = context.admin_name || "Vikram Admin";
+      const profileRole = context.entity_name || "HR & Operations";
+      $("#profileName").textContent = profileName;
+      $("#profileMenuName").textContent = profileName;
+      $("#profileRole").textContent = profileRole;
+      $("#profileMenuRole").textContent = profileRole;
+      $("#profileAvatar").textContent = initialsFromName(profileName);
+    }
+
     function setOperatingEntityContext(record = {}) {
       if (!record.entity_id) return;
       const existingPrimaryId = operatingContexts.find(context => context.context_id === "default")?.primary_entity_id || "";
@@ -7839,6 +7857,7 @@
       const contextIndex = operatingContexts.findIndex(context => context.context_id === "default");
       if (contextIndex >= 0) operatingContexts[contextIndex] = nextContext;
       else operatingContexts.push(nextContext);
+      renderProfileFromOperatingContext();
     }
 
     function resetHrmsStaticDisplayData() {
@@ -7900,6 +7919,7 @@
         const primaryRecord = entityRecords().find(record => record.entity_role === "Primary") || entityRecords()[0];
         if (primaryRecord) setOperatingEntityContext(primaryRecord);
       }
+      renderProfileFromOperatingContext();
 
       (data.locations || []).forEach(location => {
         if (!location.id) return;
