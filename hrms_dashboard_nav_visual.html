@@ -5471,14 +5471,10 @@
               <div class="card-header">
                 <div>
                   <h2 class="card-title">Attendance Trend</h2>
-                  <p class="card-subtitle">Lake Gardens and Corporate HQ, last seven days</p>
+                  <p class="card-subtitle" id="attendanceTrendSubtitle">Reserve data, last seven days</p>
                 </div>
                 <select class="filter-select" id="chartLocation" aria-label="Chart location">
-                  <option>All Locations</option>
-                  <option>Corporate HQ</option>
-                  <option>Lake Gardens</option>
-                  <option>Newtown</option>
-                  <option>Rajarhat</option>
+                  <option value="all">All Locations</option>
                 </select>
               </div>
               <div class="chart-body">
@@ -7322,6 +7318,7 @@
         status
       };
       pageConfig["entity-master"].values = getEntitySummaryValues();
+      persistHrmsReserve();
     }
 
     const weeklyData = [
@@ -7361,6 +7358,291 @@
 
     const $ = (selector, scope = document) => scope.querySelector(selector);
     const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+
+    const hrmsMockLocalStorageKey = "indipet.hrms.mockDb.v1";
+    const hrmsMockApi = {
+      baseUrl: location.protocol.startsWith("http") ? `${location.origin}/api/mock-db` : "http://localhost:4318/api/mock-db",
+      tables: ["entities", "locations", "employees", "attendance", "keyholders", "module_rows"]
+    };
+
+    function clearObject(object) {
+      Object.keys(object).forEach(key => delete object[key]);
+    }
+
+    function zeroPageConfig(config) {
+      config.values = config.labels.map(() => "0");
+      config.rows = [];
+    }
+
+    function resetHrmsStaticDisplayData() {
+      attendanceRecords.length = 0;
+      keyholderEmployees.length = 0;
+      subLocations.length = 0;
+      weeklyData.length = 0;
+      selectedLocationId = null;
+      clearObject(parentEntities);
+      clearObject(entityMasterDetails);
+      clearObject(existingLocationRecords);
+      Object.values(pageConfig).forEach(zeroPageConfig);
+      pageConfig["entity-master"].values = getEntitySummaryValues();
+      pageConfig["employee-master"].values = ["0", "0", "0"];
+      pageConfig["location-master"].values = ["0", "0", "0"];
+      pageConfig["roster"].values = ["0", "0", "0", "0", "0"];
+    }
+
+    function applyHrmsReserve(data = {}) {
+      resetHrmsStaticDisplayData();
+
+      (data.entities || []).forEach(entity => {
+        if (!entity.entity_id) return;
+        pageConfig["entity-master"].rows.push([
+          entity.entity_id,
+          entity.legal_name || "",
+          entity.entity_type || "",
+          entity.entity_role || "",
+          entity.status || "Active"
+        ]);
+        const details = entity.details && typeof entity.details === "object" ? entity.details : {};
+        const access = entity.access && typeof entity.access === "object" ? entity.access : {};
+        entityMasterDetails[entity.entity_id] = {
+          ...details,
+          ...access,
+          entity_id: entity.entity_id,
+          legal_name: entity.legal_name || "",
+          entity_type: entity.entity_type || "",
+          entity_role: entity.entity_role || "",
+          status: entity.status || "Active",
+          gstRegistered: Boolean(details.gstRegistered || details.gstin)
+        };
+        parentEntities[entity.entity_id] = entity.legal_name || entity.entity_id;
+      });
+
+      (data.locations || []).forEach(location => {
+        if (!location.id) return;
+        const record = location.record && typeof location.record === "object" ? location.record : {
+          location_id: location.id,
+          parent_entity_id: location.parentCode || "",
+          location_name: location.listName || location.name || "",
+          brand_flag: location.name || "",
+          location_type: location.type || "",
+          state: location.state || "",
+          status: location.status || "active"
+        };
+        const finalLocation = {
+          id: location.id,
+          name: location.name || location.listName || location.id,
+          listName: location.listName || location.name || location.id,
+          parent: location.parent || parentEntities[location.parentCode] || location.parentCode || "",
+          parentCode: location.parentCode || record.parent_entity_id || "",
+          state: location.state || record.state || "Not set",
+          type: location.type || locationTypeLabel(record.location_type),
+          status: location.status || titleCaseValue(record.status),
+          readiness: Number(location.readiness) || 0,
+          readinessLabel: location.readinessLabel || "Setup Draft",
+          readinessTone: location.readinessTone || "attention",
+          officialHours: location.officialHours || "Not configured",
+          operationalHours: location.operationalHours || "Not configured",
+          closedDay: location.closedDay || null,
+          services: Array.isArray(location.services) ? location.services : [],
+          deliveryZones: Array.isArray(location.deliveryZones) ? location.deliveryZones : [],
+          shifts: Array.isArray(location.shifts) ? location.shifts : [],
+          record,
+          operatingHoursRecords: Array.isArray(location.operatingHoursRecords) ? location.operatingHoursRecords : []
+        };
+        if (!finalLocation.operatingHoursRecords.length) {
+          finalLocation.operatingHoursRecords = buildOperatingHourRecords(finalLocation);
+        }
+        subLocations.push(finalLocation);
+        existingLocationRecords[finalLocation.id] = { ...record };
+      });
+      selectedLocationId = subLocations[0]?.id || null;
+
+      (data.employees || []).forEach(employee => {
+        if (!employee.employee_id) return;
+        pageConfig["employee-master"].rows.push([
+          employee.employee_id,
+          employee.employee_name || "",
+          employee.location || "Not assigned",
+          employee.designation || "Not assigned",
+          employee.profile_status || "Incomplete Profile",
+          employee.status || "Active"
+        ]);
+      });
+      pageConfig["employee-master"].values = [
+        String(pageConfig["employee-master"].rows.length),
+        String(pageConfig["employee-master"].rows.filter(row => row[4] === "Complete").length),
+        String(pageConfig["employee-master"].rows.filter(row => row[4] !== "Complete").length)
+      ];
+
+      attendanceRecords.push(...(data.attendance || []).filter(record => record.id));
+      keyholderEmployees.push(...(data.keyholders || []).filter(record => record.id));
+
+      (data.module_rows || []).forEach(record => {
+        const config = pageConfig[record.pageKey];
+        if (!config || ["entity-master", "employee-master", "location-master"].includes(record.pageKey)) return;
+        if (Array.isArray(record.cells)) config.rows.push(record.cells);
+      });
+
+      pageConfig["entity-master"].values = getEntitySummaryValues();
+      pageConfig["location-master"].values = [
+        String(subLocations.length),
+        String(subLocations.filter(location => location.type !== "Head Office").length),
+        String(subLocations.filter(location => location.type === "Head Office").length)
+      ];
+      updateHrmsDashboardSummary();
+    }
+
+    function hrmsReserveSnapshot() {
+      return {
+        entities: pageConfig["entity-master"].rows.map(row => {
+          const details = entityMasterDetails[row[0]] || {};
+          return {
+            entity_id: row[0],
+            legal_name: row[1],
+            entity_type: row[2],
+            entity_role: row[3],
+            status: row[4],
+            details,
+            access: {
+              user_id: details.user_id || "",
+              role_id: details.role_id || "",
+              login_status: details.login_status || ""
+            }
+          };
+        }),
+        locations: subLocations.map(location => ({
+          id: location.id,
+          name: location.name,
+          listName: location.listName,
+          parent: location.parent,
+          parentCode: location.parentCode,
+          state: location.state,
+          type: location.type,
+          status: location.status,
+          readiness: location.readiness,
+          readinessLabel: location.readinessLabel,
+          readinessTone: location.readinessTone,
+          officialHours: location.officialHours,
+          operationalHours: location.operationalHours,
+          closedDay: location.closedDay,
+          services: location.services || [],
+          deliveryZones: location.deliveryZones || [],
+          shifts: location.shifts || [],
+          record: location.record || {},
+          operatingHoursRecords: location.operatingHoursRecords || []
+        })),
+        employees: pageConfig["employee-master"].rows.map(row => ({
+          employee_id: row[0],
+          employee_name: row[1],
+          location: row[2],
+          designation: row[3],
+          profile_status: row[4],
+          status: row[5],
+          record: {}
+        })),
+        attendance: attendanceRecords,
+        keyholders: keyholderEmployees,
+        module_rows: Object.entries(pageConfig).flatMap(([pageKey, config]) => {
+          if (["entity-master", "employee-master", "location-master"].includes(pageKey)) return [];
+          return config.rows.map((cells, index) => ({ row_id: `${pageKey}-${index + 1}`, pageKey, cells }));
+        })
+      };
+    }
+
+    function saveHrmsReserveToBrowser(snapshot = hrmsReserveSnapshot()) {
+      try {
+        localStorage.setItem(hrmsMockLocalStorageKey, JSON.stringify(snapshot));
+      } catch {}
+    }
+
+    async function persistHrmsReserve() {
+      const snapshot = hrmsReserveSnapshot();
+      saveHrmsReserveToBrowser(snapshot);
+      try {
+        await Promise.all(hrmsMockApi.tables.map(table => fetch(`${hrmsMockApi.baseUrl}/${table}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(snapshot[table] || [])
+        })));
+        return "excel";
+      } catch {
+        return "browser";
+      }
+    }
+
+    async function loadHrmsReserve() {
+      let data = null;
+      try {
+        const response = await fetch(hrmsMockApi.baseUrl, { cache: "no-store" });
+        if (response.ok) data = await response.json();
+      } catch {}
+
+      if (!data) {
+        try {
+          data = JSON.parse(localStorage.getItem(hrmsMockLocalStorageKey) || "null");
+        } catch {}
+      }
+
+      applyHrmsReserve(data || {});
+      rerenderHrmsActiveView();
+    }
+
+    function rerenderHrmsActiveView() {
+      updateHrmsDashboardSummary();
+      if (activePage === "dashboard") {
+        renderWeeklyChart();
+        renderAttendance();
+      } else if (activePage === "sub-location") {
+        renderLocationControl();
+      } else if (activePage === "entity-master") {
+        renderEntityTable();
+      } else if (pageConfig[activePage]) {
+        renderModule(activePage);
+      }
+      refreshIcons();
+    }
+
+    function updateHrmsDashboardSummary() {
+      const cards = $$("#dashboardView .kpi-card");
+      const activeEmployees = pageConfig["employee-master"].rows.filter(row => row[5] === "Active").length;
+      const presentToday = attendanceRecords.filter(record => record.status === "Present").length;
+      const pendingApprovals = (pageConfig.approvals?.rows || []).filter(row => row[row.length - 1] === "Pending").length;
+      const rosterRows = pageConfig.roster?.rows || [];
+      const openRosterSlots = rosterRows.reduce((sum, row) => sum + (Number(row[5]) || 0), 0);
+      if (cards[0]) {
+        $(".kpi-trend", cards[0]).textContent = `${pageConfig["employee-master"].rows.length} total`;
+        $(".kpi-value", cards[0]).textContent = activeEmployees;
+      }
+      if (cards[1]) {
+        $(".kpi-trend", cards[1]).textContent = attendanceRecords.length ? `${Math.round((presentToday / attendanceRecords.length) * 100)}%` : "0%";
+        $(".kpi-value", cards[1]).textContent = presentToday;
+      }
+      if (cards[2]) {
+        $(".kpi-trend", cards[2]).textContent = pendingApprovals ? "Needs review" : "Clear";
+        $(".kpi-value", cards[2]).textContent = pendingApprovals;
+      }
+      if (cards[3]) {
+        $(".kpi-trend", cards[3]).textContent = `${openRosterSlots} open slots`;
+        $(".kpi-value", cards[3]).textContent = rosterRows.length ? "Ready" : "0%";
+      }
+      const chartLocation = $("#chartLocation");
+      if (chartLocation) {
+        const previousValue = chartLocation.value || "all";
+        chartLocation.innerHTML = [
+          `<option value="all">All Locations</option>`,
+          ...subLocations.map(location => `<option value="${location.name}">${location.name}</option>`)
+        ].join("");
+        chartLocation.value = [...chartLocation.options].some(option => option.value === previousValue) ? previousValue : "all";
+      }
+      const attendanceSubtitle = $("#attendanceTrendSubtitle");
+      if (attendanceSubtitle) {
+        attendanceSubtitle.textContent = subLocations.length ? "Selected reserve locations, last seven days" : "No attendance data yet";
+      }
+      const quickHints = $$("#dashboardView .quick-hint");
+      if (quickHints[0]) quickHints[0].textContent = `${pendingApprovals} pending requests`;
+      if (quickHints[1]) quickHints[1].textContent = `${openRosterSlots} open slots`;
+      if (quickHints[2]) quickHints[2].textContent = `${attendanceRecords.filter(record => record.status === "Absent").length} exceptions today`;
+    }
 
     function refreshIcons() {
       if (window.lucide) lucide.createIcons();
@@ -8621,6 +8903,34 @@
     }
 
     function renderLocationMeta(location) {
+      if (!location) {
+        $("#selectedLocationName").textContent = "No location selected";
+        $("#selectedLocationStatus").textContent = "Empty";
+        $("#selectedLocationStatus").className = "badge grey";
+        $("#selectedLocationMeta").innerHTML = `
+        <div class="location-meta-item">
+          <div class="location-meta-label">Location Code</div>
+          <div class="location-meta-value">-</div>
+        </div>
+        <div class="location-meta-item">
+          <div class="location-meta-label">Parent Entity</div>
+          <div class="location-meta-value">-</div>
+        </div>
+        <div class="location-meta-item">
+          <div class="location-meta-label">State</div>
+          <div class="location-meta-value">-</div>
+        </div>
+        <div class="location-meta-item">
+          <div class="location-meta-label">Operating Type</div>
+          <div class="location-meta-value">-</div>
+        </div>
+        <div class="location-meta-item">
+          <div class="location-meta-label">Readiness Score</div>
+          <div class="location-meta-value readiness-score"><span>0%</span></div>
+        </div>
+      `;
+        return;
+      }
       $("#selectedLocationName").textContent = location.name;
       $("#selectedLocationStatus").textContent = location.status;
       $("#selectedLocationStatus").className = `badge ${statusClass[location.status] || "grey"}`;
@@ -9101,6 +9411,7 @@
       location.shiftPolicyRecords = [...(location.shiftPolicyRecords || []), { ...record }];
       renderLocationTab();
       closeShiftPolicyModal();
+      persistHrmsReserve();
       showToast(`${record.policy_name} created for ${location.listName}.`);
     }
 
@@ -9122,6 +9433,13 @@
 
     function populateRosterLocations(selectedId = selectedLocationId, locked = false) {
       const select = $("#rosterLocation");
+      if (!subLocations.length) {
+        select.innerHTML = `<option value="">No locations available</option>`;
+        select.value = "";
+        select.disabled = true;
+        $("#rosterLocationHelp").textContent = "Create a Sub Location before generating a roster.";
+        return;
+      }
       select.innerHTML = subLocations.map(location => `
         <option value="${location.id}" ${location.id === selectedId ? "selected" : ""}>${location.name} (${location.id})</option>
       `).join("");
@@ -9399,6 +9717,7 @@
       hoursEditMode = false;
       hoursDraft = null;
       renderLocationTab();
+      persistHrmsReserve();
       showToast(`${location.listName} operating hours saved.`);
     }
 
@@ -9616,6 +9935,18 @@
 
     function renderLocationTab() {
       const location = getSelectedLocation();
+      if (!location) {
+        $("#locationTabContent").innerHTML = `
+        <div class="empty-state is-visible">
+          <i data-lucide="map-pin"></i>
+          <div class="empty-title">No locations yet</div>
+          <div class="empty-copy">Create a Sub Location to start configuring operating hours, services, delivery zones and shift policies.</div>
+        </div>
+      `;
+        $$(".location-tab").forEach(tab => tab.classList.remove("is-active"));
+        refreshIcons();
+        return;
+      }
       const renderers = {
         overview: renderOverviewTab,
         hours: renderHoursTab,
@@ -10215,6 +10546,7 @@
       pageConfig["entity-master"].values = getEntitySummaryValues();
 
       selectedEntityId = entityId;
+      persistHrmsReserve();
       resetEntityAccessFields();
       activatePage("entity-master");
       if ($("#entityTableSearch")) {
@@ -10248,6 +10580,7 @@
         });
       pageConfig["entity-master"].values = getEntitySummaryValues();
       selectedEntityId = activeEntityRecordId;
+      persistHrmsReserve();
       activatePage("entity-master");
       $("#entityTableSearch") && ($("#entityTableSearch").value = activeEntityRecordId);
       renderEntityTable();
@@ -10267,6 +10600,7 @@
       pageConfig["entity-master"].values = getEntitySummaryValues();
       activeEntityRecordId = null;
       entityFormMode = "create";
+      persistHrmsReserve();
       activatePage("entity-master");
       showToast(`${record.legal_name} deleted.`);
     }
@@ -10482,6 +10816,7 @@
         String(pageConfig["employee-master"].rows.filter(row => row[4] !== "Complete").length)
       ];
       selectedEmployeeId = employeeId;
+      persistHrmsReserve();
       activatePage("employee-master");
       $("#moduleSearch").value = employeeId;
       renderModule("employee-master");
@@ -10814,6 +11149,7 @@
     $("#confirmRosterDraft").addEventListener("click", () => {
       if (!rosterGeneratedResult) return;
       closeRosterGenerateModal();
+      persistHrmsReserve();
       showToast(`${rosterGeneratedResult.location.listName} roster draft saved for ${rosterGeneratedResult.period}.`);
     });
     $("#publishRoster").addEventListener("click", () => {
@@ -11016,8 +11352,17 @@
       activeLocationTab = tab.dataset.locationTab;
       renderLocationTab();
     });
-    $("#editLocationButton").addEventListener("click", () => openLocationForm("edit"));
-    $("#locationMoreButton").addEventListener("click", () => showToast(`More location actions opened for ${getSelectedLocation().listName}.`));
+    $("#editLocationButton").addEventListener("click", () => {
+      if (!getSelectedLocation()) {
+        showToast("Create a Sub Location before editing.");
+        return;
+      }
+      openLocationForm("edit");
+    });
+    $("#locationMoreButton").addEventListener("click", () => {
+      const location = getSelectedLocation();
+      showToast(location ? `More location actions opened for ${location.listName}.` : "Create a Sub Location before using more actions.");
+    });
     $("#locationTabContent").addEventListener("click", event => {
       const hoursSwitch = event.target.closest(".hours-switch");
       if (hoursSwitch) {
@@ -11139,6 +11484,7 @@
 
         activeLocationTab = "overview";
         $("#locationSearch").value = "";
+        persistHrmsReserve();
         activatePage("sub-location");
         showToast(locationFormMode === "edit"
           ? `${record.location_name} updated successfully.`
@@ -11312,9 +11658,13 @@
       if (!event.target.closest("#entityViewStatusAction")) closeEntityViewStatusMenu();
     });
 
+    resetHrmsStaticDisplayData();
+    loadHrmsReserve();
+
     renderWeeklyChart();
     renderAttendance();
     renderLocationControl();
+    updateHrmsDashboardSummary();
     refreshIcons();
   </script>
 </body>
