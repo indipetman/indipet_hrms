@@ -7428,6 +7428,11 @@
       return activeStateMasters().find(state => state.state_name.toLowerCase() === normalized) || null;
     }
 
+    function stateMasterByGstCode(gstCode) {
+      const normalized = String(gstCode || "").trim().padStart(2, "0");
+      return activeStateMasters().find(state => state.gst_state_code === normalized || state.state_code === normalized) || null;
+    }
+
     function populateStateMasterSelects() {
       $$('select[data-entity-field="state"], select[data-location-field="state"]').forEach(select => {
         const selectedState = select.value;
@@ -10388,9 +10393,16 @@
       return normalized.length >= 12 ? normalized.slice(2, 12) : "";
     }
 
+    function gstStateCodeFromGstin(gstin) {
+      const normalized = String(gstin || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return normalized.length >= 2 ? normalized.slice(0, 2) : "";
+    }
+
     function syncEntityPanFromGstin(showHint = true) {
       const gstinField = $('[data-entity-field="gstin"]');
       const panField = $('[data-entity-field="pan_number"]');
+      const stateField = $('[data-entity-field="state"]');
+      const stateCodeField = $('[data-entity-field="gst_state_code"]');
       if (!gstinField || !panField) return "";
 
       const normalizedGstin = gstinField.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -10400,7 +10412,19 @@
       if (derivedPan) {
         panField.value = derivedPan;
         panField.removeAttribute("aria-invalid");
-        if (showHint) showToast(`PAN fetched from GSTIN: ${derivedPan}`);
+      }
+
+      const stateMaster = stateMasterByGstCode(gstStateCodeFromGstin(normalizedGstin));
+      if (stateMaster && stateField && stateCodeField) {
+        stateField.value = stateMaster.state_name;
+        stateCodeField.value = stateMaster.gst_state_code;
+        stateField.removeAttribute("aria-invalid");
+      }
+
+      if (showHint && (derivedPan || stateMaster)) {
+        const stateMessage = stateMaster ? `State: ${stateMaster.state_name}` : "";
+        const panMessage = derivedPan ? `PAN: ${derivedPan}` : "";
+        showToast([panMessage, stateMessage].filter(Boolean).join(" · ") + " fetched from GSTIN.");
       }
       return derivedPan;
     }
