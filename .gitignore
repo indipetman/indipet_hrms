@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.env
+.env.*
+!.env.example
+mock-db/backups/
+mock-db/*.pre-*.xlsx
+mock-db/uploads/
+*.xlsx
+!mock-db/hrms_mock_database.xlsx
