@@ -21,3 +21,16 @@ This contract applies to every current and future ERP and HRMS layer in this wor
 - Enforce referential integrity in the mock API as well as the UI so direct or stale clients cannot bypass the rule.
 - Do not silently cascade-delete linked business records. The linked records must be removed or reassigned first; then the user may retry deletion.
 - Add automated coverage for the confirmation dialog, blocked dependency behavior, successful unlinked deletion and server-side rejection.
+
+# Tenant and Legal Ownership Contract
+
+This contract applies to every current and future ERP, HRMS, payroll, ecommerce and accounting layer in this workspace.
+
+- ERP Core owns the hidden tenant/workspace registry. HRMS and future applications consume that tenant identity; they must not create a second authoritative tenant record.
+- Every persisted business record must carry `tenant_id`. Statutory reference masters such as country, state, city and pincode may remain system-scoped.
+- Every legal, payroll, inventory, tax, ledger, journal and transaction record must also carry the owning `entity_id` (or the established entity field such as `organization_id`) and `location_id` when operationally applicable.
+- Customer, vendor, product, service, department or other tenant-wide identity masters may be shared only through an explicit entity relationship/mapping. Never infer sharing from a missing Entity ID.
+- The authenticated server context or ERP Core ownership context must derive Tenant and Entity ownership. Never trust arbitrary Tenant or Entity identifiers supplied by a browser client.
+- Before the Primary Entity exists, UI and API writes for business records must fail closed with an actionable ownership error. Setup access may create the tenant and Primary Entity only.
+- Reads, writes, exports, backups, deletes and future CA/GST/accounting extracts must preserve tenant isolation and legal-entity boundaries.
+- Add automated coverage for pre-Primary rejection, Tenant/Entity stamping, mismatched-scope rejection, Excel acknowledgement, reload and cross-tenant isolation.

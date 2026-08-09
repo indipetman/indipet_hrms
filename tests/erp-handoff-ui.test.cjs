@@ -27,6 +27,12 @@ test("HRMS completes the verified handoff before loading or revealing tenant dat
   assert.match(html, /if \(accessGranted\) \{\s*reconcileOperatingEntityContext\(\);\s*renderProfileFromOperatingContext\(\);\s*revealHrmsApp\(\);/s);
 });
 
+test("HRMS fails closed with an actionable message when workspace initialization fails", () => {
+  assert.match(html, /initializeHrmsWorkspace\(\)\.catch/);
+  assert.match(html, /hrmsInitializationError/);
+  assert.match(html, /HRMS could not finish loading its Excel-backed data/);
+});
+
 test("direct HRMS login has no built-in setup administrator", () => {
   assert.doesNotMatch(html, /isHrmsSetupAdminUserId|isHrmsSetupAdminLogin|source: "hrms-setup"/);
   assert.match(html, /No Excel-backed Primary Entity login exists\. Complete first-run setup in ERP Core/);

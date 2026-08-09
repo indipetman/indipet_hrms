@@ -12,7 +12,7 @@ import HrmsLeaveCapResolver from "./leave-cap-resolver.cjs";
 import HrmsLossOfPayResolver from "./loss-of-pay-resolver.cjs";
 import HrmsAttendancePenaltyResolver from "./attendance-penalty-resolver.cjs";
 import HrmsErpConnectivity from "./hrms-erp-connectivity.cjs";
-import ProductionRuntime from "./production-runtime.cjs";
+import ProductionRuntime from "../production-runtime.cjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +25,7 @@ const htmlPath = path.join(__dirname, "hrms_dashboard_nav_visual.html");
 const employeeUploadDir = path.join(path.dirname(dbPath), "uploads", "employee-documents");
 const ERP_CORE_ORIGIN = String(process.env.ERP_CORE_ORIGIN || "http://127.0.0.1:4317").replace(/\/$/, "");
 const REQUIRE_ERP_CORE = process.env.HRMS_REQUIRE_ERP_CORE !== "0";
+const TENANT_ID = String(process.env.INDIPET_TENANT_ID || "TEN-INDIPET").trim();
 const productionRuntime = ProductionRuntime.assertProductionRuntime({
   appName: "indipet_hrms",
   appDir: __dirname,
@@ -51,13 +52,17 @@ async function readErpOrganizationSnapshot() {
 }
 
 async function validateErpOrganizationConnectivity(snapshot) {
-  if (!REQUIRE_ERP_CORE || !HrmsErpConnectivity.needsOrganizationSnapshot(snapshot)) {
-    return { ok: true, blockers: [] };
+  if (!HrmsErpConnectivity.needsOrganizationSnapshot(snapshot)) {
+    return { ok: true, blockers: [], snapshot };
   }
-  return HrmsErpConnectivity.validateAgainstOrganization(
-    snapshot,
-    await readErpOrganizationSnapshot()
-  );
+  if (!REQUIRE_ERP_CORE) {
+    return { ok: true, blockers: [], snapshot: HrmsErpConnectivity.stampTenantOwnership(snapshot, TENANT_ID) };
+  }
+  const organization = await readErpOrganizationSnapshot();
+  const ownership = HrmsErpConnectivity.applyTenantOwnership(snapshot, organization);
+  if (!ownership.ok) return ownership;
+  const validation = HrmsErpConnectivity.validateAgainstOrganization(ownership.snapshot, organization);
+  return validation.ok ? { ...validation, snapshot: ownership.snapshot, tenant_id: ownership.tenant_id } : validation;
 }
 
 const modulePageKey = record => String(record?.pageKey || record?.page_key || "").trim().toLowerCase();
@@ -355,6 +360,10 @@ const tableConfig = {
   }
 };
 
+Object.values(tableConfig).forEach(config => {
+  if (!config.headers.includes("tenant_id")) config.headers.unshift("tenant_id");
+});
+
 const seedData = Object.fromEntries(Object.keys(tableConfig).map(tableName => [tableName, []]));
 
 const serializeJsonCell = value => {
@@ -439,6 +448,14 @@ const normalizeTableRecord = (tableName, record) => {
   return tableName === "employees" ? stripObsoleteEmployeeFields(normalized) : normalized;
 };
 
+const migrateHrmsTenantRecord = (tableName, record) => {
+  const normalized = { ...record, tenant_id: String(record?.tenant_id || TENANT_ID).trim() };
+  if (tableName === "employees" && normalized.record && typeof normalized.record === "object") {
+    normalized.record = { ...normalized.record, tenant_id: normalized.tenant_id };
+  }
+  return normalized;
+};
+
 const employeeStructuredTableNames = [
   "employee_documents", "employee_education", "employee_experience", "employee_skills", "employee_finance_benefits"
 ];
@@ -465,6 +482,16 @@ const ensureWorkbook = () => {
   const workbook = workbookExists
     ? XLSX.readFile(dbPath, { cellDates: false })
     : XLSX.utils.book_new();
+  const tenantOwnershipMigrationTables = new Set(workbookExists
+    ? Object.entries(tableConfig)
+      .filter(([tableName, config]) => {
+        const sheet = workbook.Sheets[tableName];
+        if (!sheet) return false;
+        const headers = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })[0] || [];
+        return config.headers.some(header => !headers.includes(header));
+      })
+      .map(([tableName]) => tableName)
+    : []);
   const needsLeaveLedgerMigration = workbookExists && !workbook.Sheets.leave_ledger;
   const leaveLedgerHeaderRow = workbook.Sheets.leave_ledger
     ? XLSX.utils.sheet_to_json(workbook.Sheets.leave_ledger, { header: 1, defval: "" })[0] || []
@@ -616,6 +643,11 @@ const ensureWorkbook = () => {
     || needsEmployeeProfileCleanup
     || employeeStructuredTableNames.some(tableName => migratedEmployeeStructuredRows[tableName].length !== existingEmployeeStructuredRows[tableName].length)
   );
+  if (tenantOwnershipMigrationTables.size) {
+    const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupPath = path.join(path.dirname(dbPath), `hrms_mock_database.pre-tenant-ownership-${backupStamp}.xlsx`);
+    fs.copyFileSync(dbPath, backupPath);
+  }
   if (needsShiftPolicyMigration) {
     const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
     const backupPath = path.join(dbDir, `hrms_mock_database.pre-shift-policies-${backupStamp}.xlsx`);
@@ -690,6 +722,7 @@ const ensureWorkbook = () => {
       if ((tableName === "leave_ledger" && needsLeaveLedgerColumnMigration)
         || (tableName === "attendance" && needsAttendanceColumnMigration)
         || (tableName === "rosters" && needsRosterColumnMigration)
+        || tenantOwnershipMigrationTables.has(tableName)
         || (tableName === "employees" && needsEmployeeProfileCleanup)
         || (tableName === "employee_family_members" && needsEmployeeFamilyMigration)
         || (employeeStructuredTableNames.includes(tableName) && needsEmployeeStructuredMigration)) {
@@ -702,7 +735,9 @@ const ensureWorkbook = () => {
             ? existingRows.map(stripObsoleteEmployeeFields)
             : existingRows;
         workbook.Sheets[tableName] = worksheetFromRows(
-          migratedRows.map(record => serializeRecord(record, config.headers)),
+          migratedRows
+            .map(record => migrateHrmsTenantRecord(tableName, record))
+            .map(record => serializeRecord(record, config.headers)),
           config.headers
         );
         changed = true;
@@ -1054,7 +1089,7 @@ http.createServer(async (request, response) => {
         const penaltyResult = HrmsAttendancePenaltyResolver.reconcile(prospectiveSnapshot);
         const penaltySnapshot = penaltyResult.snapshot;
         const lopResult = HrmsLossOfPayResolver.reconcileEntries(penaltySnapshot.leave_ledger, penaltySnapshot);
-        const nextSnapshot = { ...penaltySnapshot, leave_ledger: lopResult.entries };
+        let nextSnapshot = { ...penaltySnapshot, leave_ledger: lopResult.entries };
         const deletionValidation = HrmsDeleteIntegrity.validateSnapshotDeletion(currentSnapshot, nextSnapshot);
         if (!deletionValidation.ok) {
           return sendJson(response, 409, {
@@ -1084,11 +1119,13 @@ http.createServer(async (request, response) => {
         const erpConnectivityValidation = await validateErpOrganizationConnectivity(nextSnapshot);
         if (!erpConnectivityValidation.ok) {
           return sendJson(response, erpConnectivityValidation.unavailable ? 503 : 409, {
+            code: erpConnectivityValidation.code || "ERP_ORGANIZATION_REFERENCE_INVALID",
             error: erpConnectivityValidation.error,
             blockers: erpConnectivityValidation.blockers,
             table: erpConnectivityValidation.table
           });
         }
+        nextSnapshot = erpConnectivityValidation.snapshot || nextSnapshot;
         const leaveCapValidation = HrmsLeaveCapResolver.validateApprovedLeaveCaps(nextSnapshot);
         if (!leaveCapValidation.ok) {
           return sendJson(response, 409, {
@@ -1191,7 +1228,7 @@ http.createServer(async (request, response) => {
         const penaltyResult = HrmsAttendancePenaltyResolver.reconcile(prospectiveSnapshot);
         const penaltySnapshot = penaltyResult.snapshot;
         const lopResult = HrmsLossOfPayResolver.reconcileEntries(penaltySnapshot.leave_ledger, penaltySnapshot);
-        const nextSnapshot = { ...penaltySnapshot, leave_ledger: lopResult.entries };
+        let nextSnapshot = { ...penaltySnapshot, leave_ledger: lopResult.entries };
         const deletionValidation = HrmsDeleteIntegrity.validateSnapshotDeletion(currentSnapshot, nextSnapshot);
         if (!deletionValidation.ok) {
           return sendJson(response, 409, {
@@ -1221,11 +1258,13 @@ http.createServer(async (request, response) => {
         const erpConnectivityValidation = await validateErpOrganizationConnectivity(nextSnapshot);
         if (!erpConnectivityValidation.ok) {
           return sendJson(response, erpConnectivityValidation.unavailable ? 503 : 409, {
+            code: erpConnectivityValidation.code || "ERP_ORGANIZATION_REFERENCE_INVALID",
             error: erpConnectivityValidation.error,
             blockers: erpConnectivityValidation.blockers,
             table: erpConnectivityValidation.table
           });
         }
+        nextSnapshot = erpConnectivityValidation.snapshot || nextSnapshot;
         const leaveCapValidation = HrmsLeaveCapResolver.validateApprovedLeaveCaps(nextSnapshot);
         if (!leaveCapValidation.ok) {
           return sendJson(response, 409, {

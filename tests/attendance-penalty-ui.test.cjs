@@ -51,6 +51,8 @@ test("penalty tables are Excel-owned, serialized and reloaded", () => {
   assert.match(server, /HrmsAttendancePenaltyResolver\.reconcile/);
   assert.match(server, /HrmsAttendancePenaltyResolver\.validateSnapshot/);
   assert.match(html, /AttendancePenaltyResolver\.reconcile/);
+  assert.doesNotMatch(html, /function attendancePenaltySnapshot\(\) \{\s*return hrmsReserveSnapshot\(\);/s);
+  assert.match(html, /function attendancePenaltySnapshot\(\)[\s\S]*attendance_penalty_rules: attendancePenaltyRules\.map/);
 });
 
 test("Attendance Policy save requires Excel acknowledgement and restores the previous state on failure", () => {

@@ -8,6 +8,93 @@
   const text = value => String(value ?? "").trim();
   const array = value => Array.isArray(value) ? value : [];
   const inactive = record => text(record?.status).toLowerCase() === "inactive";
+  const snapshotTables = snapshot => Object.entries(snapshot || {})
+    .filter(([, rows]) => Array.isArray(rows));
+
+  function businessRecordCount(snapshot = {}) {
+    return snapshotTables(snapshot).reduce((total, [, rows]) => total + rows.length, 0);
+  }
+
+  function activeTenant(organization = {}) {
+    return array(organization.tenants).find(record => text(record?.tenant_id) && !inactive(record)) || null;
+  }
+
+  function primaryEntity(organization = {}, tenantId = "") {
+    return array(organization.entities).find(record =>
+      text(record?.entity_role).toLowerCase() === "primary"
+      && !inactive(record)
+      && (!tenantId || text(record?.tenant_id) === text(tenantId))
+    ) || null;
+  }
+
+  function stampTenantOwnership(snapshot = {}, tenantId = "") {
+    const expectedTenantId = text(tenantId);
+    const scoped = { ...snapshot };
+    for (const [tableName, rows] of snapshotTables(snapshot)) {
+      scoped[tableName] = rows.map(record => {
+        const next = { ...record, tenant_id: expectedTenantId };
+        if (tableName === "employees" && next.record && typeof next.record === "object") {
+          next.record = { ...next.record, tenant_id: expectedTenantId };
+        }
+        return next;
+      });
+    }
+    return scoped;
+  }
+
+  function applyTenantOwnership(snapshot = {}, organization = null) {
+    if (!businessRecordCount(snapshot)) return { ok: true, snapshot, tenant_id: "" };
+    if (!organization || typeof organization !== "object") {
+      return {
+        ok: false,
+        unavailable: true,
+        code: "TENANT_CONTEXT_UNAVAILABLE",
+        table: "erp_core_organization",
+        blockers: [{ reason: "ERP Core tenant workspace is unavailable" }],
+        error: "HRMS save blocked because ERP Core organization data could not be loaded, including the Tenant workspace. Start ERP Core and retry."
+      };
+    }
+    const tenant = activeTenant(organization);
+    if (!tenant) {
+      return {
+        ok: false,
+        code: "TENANT_CONTEXT_REQUIRED",
+        table: "tenants",
+        blockers: [{ reason: "No active ERP Core tenant workspace exists" }],
+        error: "HRMS save blocked because no active Tenant workspace exists in ERP Core."
+      };
+    }
+    const tenantId = text(tenant.tenant_id);
+    const primary = primaryEntity(organization, tenantId);
+    if (!primary) {
+      return {
+        ok: false,
+        code: "OWNER_CONTEXT_REQUIRED",
+        table: "entities",
+        tenant_id: tenantId,
+        blockers: [{ reason: "Primary Entity is missing" }],
+        error: "Create the Primary Entity in ERP Core before saving HRMS business records."
+      };
+    }
+    const mismatch = snapshotTables(snapshot).flatMap(([tableName, rows]) => rows.map(record => ({ tableName, record })))
+      .find(({ record }) => text(record?.tenant_id) && text(record.tenant_id) !== tenantId);
+    if (mismatch) {
+      return {
+        ok: false,
+        code: "TENANT_SCOPE_MISMATCH",
+        table: mismatch.tableName,
+        tenant_id: tenantId,
+        blockers: [{ reason: "Record belongs to another Tenant workspace" }],
+        error: `HRMS save blocked because ${mismatch.tableName} contains a record for another Tenant workspace.`
+      };
+    }
+    return {
+      ok: true,
+      tenant_id: tenantId,
+      primary_entity_id: text(primary.entity_id),
+      snapshot: stampTenantOwnership(snapshot, tenantId)
+    };
+  }
 
   function employeeDetails(employee = {}) {
     return employee.record && typeof employee.record === "object" ? employee.record : {};
@@ -102,7 +189,7 @@
   }
 
   function needsOrganizationSnapshot(snapshot = {}) {
-    return organizationReferences(snapshot).length > 0;
+    return businessRecordCount(snapshot) > 0;
   }
 
   function validateAgainstOrganization(snapshot = {}, organization = null) {
@@ -127,8 +214,11 @@
         .filter(([id]) => Boolean(id))
     );
     const blockers = [];
+    const ownership = applyTenantOwnership(snapshot, organization);
+    if (!ownership.ok) return ownership;
+    const tenantId = ownership.tenant_id;
 
-    for (const reference of organizationReferences(snapshot)) {
+    for (const reference of organizationReferences(ownership.snapshot)) {
       const parent = reference.reference_type === "entity"
         ? entities.get(reference.reference_id)
         : locations.get(reference.reference_id);
@@ -138,6 +228,13 @@
           reason: !parent
             ? `ERP Core ${reference.reference_type} does not exist`
             : `ERP Core ${reference.reference_type} is inactive`
+        });
+        continue;
+      }
+      if (tenantId && text(parent.tenant_id) !== tenantId) {
+        blockers.push({
+          ...reference,
+          reason: `ERP Core ${reference.reference_type} belongs to another Tenant workspace`
         });
         continue;
       }
@@ -164,8 +261,13 @@
   }
 
   return {
+    activeTenant,
+    applyTenantOwnership,
+    businessRecordCount,
     needsOrganizationSnapshot,
     organizationReferences,
+    primaryEntity,
+    stampTenantOwnership,
     validateAgainstOrganization
   };
 });

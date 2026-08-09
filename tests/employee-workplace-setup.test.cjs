@@ -392,6 +392,7 @@ test("employee linked datasets are acknowledged by Excel while legacy blob field
     "uan_number",
     "esi_number"
   ].forEach(field => delete expectedRecord[field]);
+  expectedRecord.tenant_id = "TEN-INDIPET";
   assert.deepEqual(reloaded.employees[0].record, expectedRecord);
   assert.equal(reloaded.employee_family_members[0].employee_id, record.employee_id);
   assert.equal(reloaded.employee_family_members[0].member_name, "Family Example");

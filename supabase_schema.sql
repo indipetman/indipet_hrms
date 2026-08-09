@@ -1,5 +1,17 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
+-- ERP Core owns tenant_workspace. Every HRMS business table in the executable migration must
+-- include tenant_id; entity/location ownership remains mandatory where the workflow requires it.
+
+CREATE TABLE public.tenant_workspace (
+  tenant_id character varying NOT NULL,
+  tenant_name character varying NOT NULL,
+  workspace_key character varying NOT NULL UNIQUE,
+  status character varying NOT NULL DEFAULT 'Active'::character varying,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT tenant_workspace_pkey PRIMARY KEY (tenant_id)
+);
 
 CREATE TABLE public.attendance (
   attendance_id integer NOT NULL DEFAULT nextval('attendance_attendance_id_seq'::regclass),

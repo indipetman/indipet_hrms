@@ -12,7 +12,7 @@ test("HRMS consumes State Master from the ERP Core snapshot only", () => {
   assert.doesNotMatch(source, /defaultStateMasters/);
   assert.match(source, /state_masters:\s*Array\.isArray\(erpData\.state_masters\)/);
   assert.match(source, /entity_gst_registrations:\s*Array\.isArray\(erpData\.entity_gst_registrations\)/);
-  assert.match(source, /return \{ \.\.\.\(hrmsData \|\| \{\}\), entity_gst_registrations: \[\], state_masters: \[\] \};/);
+  assert.match(source, /return \{ \.\.\.\(hrmsData \|\| \{\}\), entity_gst_registrations: \[\], entity_tax_registrations: \[\], franchise_agreements: \[\], state_masters: \[\] \};/);
   assert.doesNotMatch(source, /state_masters:\s*stateMasters\.map/);
 });
 

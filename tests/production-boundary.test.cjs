@@ -6,7 +6,7 @@ const test = require("node:test");
 const packageRoot = path.resolve(__dirname, "..");
 const workspaceRoot = path.resolve(packageRoot, "..");
 const html = fs.readFileSync(path.join(packageRoot, "hrms_dashboard_nav_visual.html"), "utf8");
-const ProductionRuntime = require(path.join(__dirname, "..", "production-runtime.cjs"));
+const ProductionRuntime = require(path.join(workspaceRoot, "production-runtime.cjs"));
 
 test("HRMS production cannot disable ERP Core connectivity", () => {
   const fakeAppDir = path.join(workspaceRoot, "indipet_hrms");

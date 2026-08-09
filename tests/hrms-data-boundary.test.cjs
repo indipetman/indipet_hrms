@@ -36,6 +36,8 @@ test("HRMS persistence excludes ERP Core organization tables", () => {
   const snapshot = ownedSnapshot({
     entities: [{ entity_id: "IPL101" }],
     entity_gst_registrations: [{ registration_id: "GST-IPL101-19-01" }],
+    entity_tax_registrations: [{ registration_id: "TAN-IPL101" }],
+    franchise_agreements: [{ agreement_id: "AGR-FRA101" }],
     locations: [{ id: "IPL101-NDP001" }],
     employees: [{ employee_id: "E1" }],
     employee_family_members: [{ family_member_id: "FM1", employee_id: "E1" }],
@@ -63,6 +65,8 @@ test("HRMS persistence excludes ERP Core organization tables", () => {
   });
   assert.equal("entities" in snapshot, false);
   assert.equal("entity_gst_registrations" in snapshot, false);
+  assert.equal("entity_tax_registrations" in snapshot, false);
+  assert.equal("franchise_agreements" in snapshot, false);
   assert.equal("locations" in snapshot, false);
   assert.deepEqual(snapshot.employees, [{ employee_id: "E1" }]);
   assert.deepEqual(snapshot.employee_family_members, [{ family_member_id: "FM1", employee_id: "E1" }]);
@@ -89,6 +93,8 @@ test("HRMS persistence excludes ERP Core organization tables", () => {
 test("HRMS server can detect attempts to write shared organization fields", () => {
   assert.deepEqual(sharedFieldsPresent({
     entities: [],
+    entity_tax_registrations: [],
+    franchise_agreements: [],
     rosters: []
-  }), ["entities"]);
+  }), ["entities", "entity_tax_registrations", "franchise_agreements"]);
 });

@@ -8656,7 +8656,7 @@
                 </button>
                 <button class="entity-step" type="button" data-entity-step="1">
                   <span class="entity-step-number">2</span>
-                  <span><span class="entity-step-name">Legal & Tax Details</span><span class="entity-step-copy">GST, PAN, CIN information</span></span>
+                  <span><span class="entity-step-name">Legal & Tax Details</span><span class="entity-step-copy">Registration, PAN, TAN and GST</span></span>
                 </button>
                 <button class="entity-step" type="button" data-entity-step="2">
                   <span class="entity-step-number">3</span>
@@ -8690,13 +8690,24 @@
                     <span class="location-form-label">Legal Name <span class="field-state required">Required</span></span>
                     <input name="legal_name" data-entity-field="legal_name" placeholder="Enter legal entity name" required>
                   </label>
+                  <label class="location-form-field span-2">
+                    <span class="location-form-label">Trade Name</span>
+                    <input name="trade_name" data-entity-field="trade_name" placeholder="Brand or trade name, if different">
+                  </label>
                   <label class="location-form-field">
-                    <span class="location-form-label">Entity Type <span class="field-state required">Required</span></span>
+                    <span class="location-form-label">Constitution <span class="field-state required">Required</span></span>
                     <select name="entity_type" data-entity-field="entity_type" required>
-                      <option value="">Select entity type</option>
+                      <option value="">Select constitution</option>
                       <option value="Company">Company</option>
-                      <option value="Proprietorship">Proprietorship</option>
+                      <option value="LLP">LLP</option>
                       <option value="Partnership">Partnership</option>
+                      <option value="Proprietorship">Proprietorship</option>
+                      <option value="Individual">Individual</option>
+                      <option value="HUF">HUF</option>
+                      <option value="Trust">Trust</option>
+                      <option value="Society">Society</option>
+                      <option value="AOP">AOP</option>
+                      <option value="Other">Other</option>
                     </select>
                   </label>
                   <label class="location-form-field">
@@ -8708,7 +8719,17 @@
                     </select>
                   </label>
                   <label class="location-form-field">
-                    <span class="location-form-label">Status <span class="field-state required">Required</span></span>
+                    <span class="location-form-label">Legal Status <span class="field-state required">Required</span></span>
+                    <select name="legal_status" data-entity-field="legal_status" required>
+                      <option value="Active">Active</option>
+                      <option value="Dormant">Dormant</option>
+                      <option value="Under Process">Under Process</option>
+                      <option value="Closed">Closed</option>
+                      <option value="Dissolved">Dissolved</option>
+                    </select>
+                  </label>
+                  <label class="location-form-field">
+                    <span class="location-form-label">Operational Status <span class="field-state required">Required</span></span>
                     <select name="status" data-entity-field="status" required>
                       <option value="">Select status</option>
                       <option value="Active">Active</option>
@@ -8722,8 +8743,26 @@
               <section class="entity-form-section" data-entity-section="1">
                 <div class="form-section-kicker">Step 2 of 5</div>
                 <h2 class="form-section-title">Legal & Tax Details</h2>
-                <p class="form-section-description">Maintain the existing GST, PAN and CIN fields for this entity.</p>
+                <p class="form-section-description">Maintain legal registration, statutory dates, PAN/TAN and the primary GST registration.</p>
                 <div class="location-form-grid">
+                  <label class="location-form-field">
+                    <span class="location-form-label">PAN Number <span class="field-state required">Required</span></span>
+                    <input name="pan_number" data-entity-field="pan_number" placeholder="ABCDE1234F" maxlength="10" required>
+                  </label>
+                  <label class="location-form-field">
+                    <span class="location-form-label">Registration Type</span>
+                    <select name="registration_type" data-entity-field="registration_type"><option value="">Select registration type</option><option value="CIN">CIN</option><option value="LLPIN">LLPIN</option><option value="Firm Registration">Firm Registration</option><option value="Trust Registration">Trust Registration</option><option value="Society Registration">Society Registration</option><option value="Other">Other</option><option value="Not Applicable">Not Applicable</option></select>
+                  </label>
+                  <label class="location-form-field">
+                    <span class="location-form-label">Registration Number</span>
+                    <input name="registration_number" data-entity-field="registration_number" placeholder="CIN, LLPIN or applicable number">
+                  </label>
+                  <label class="location-form-field"><span class="location-form-label">Formation / Incorporation Date</span><input name="incorporation_date" data-entity-field="incorporation_date" type="date"></label>
+                  <label class="location-form-field"><span class="location-form-label">Business Commencement Date</span><input name="business_commencement_date" data-entity-field="business_commencement_date" type="date"></label>
+                  <label class="location-form-field"><span class="location-form-label">Legal Status Effective From</span><input name="status_effective_from" data-entity-field="status_effective_from" type="date"></label>
+                  <label class="location-form-field"><span class="location-form-label">Closure Date</span><input name="closure_date" data-entity-field="closure_date" type="date"></label>
+                  <label class="location-form-field span-2"><span class="location-form-label">Closure Reason</span><input name="closure_reason" data-entity-field="closure_reason" placeholder="Required for Closed or Dissolved status"></label>
+                  <label class="location-form-field"><span class="location-form-label">TAN</span><input name="tan_number" data-entity-field="tan_number" placeholder="ABCD12345E" maxlength="10"></label>
                   <label class="location-form-field">
                     <span class="location-form-label">GSTIN</span>
                     <input name="gstin" data-entity-field="gstin" placeholder="Enter GSTIN">
@@ -8737,14 +8776,10 @@
                       <option value="Unregistered">Unregistered</option>
                     </select>
                   </label>
-                  <label class="location-form-field">
-                    <span class="location-form-label">PAN Number</span>
-                    <input name="pan_number" data-entity-field="pan_number" placeholder="Enter PAN number">
-                  </label>
-                  <label class="location-form-field">
-                    <span class="location-form-label">CIN Number</span>
-                    <input name="cin_number" data-entity-field="cin_number" placeholder="Enter CIN number">
-                  </label>
+                  <label class="location-form-field"><span class="location-form-label">Taxpayer Type</span><input name="taxpayer_type" data-entity-field="taxpayer_type" placeholder="Regular, SEZ, ISD, etc."></label>
+                  <label class="location-form-field"><span class="location-form-label">GST Effective From</span><input name="gst_effective_from" data-entity-field="gst_effective_from" type="date"></label>
+                  <label class="location-form-field"><span class="location-form-label">GST Cancellation Date</span><input name="gst_cancellation_date" data-entity-field="gst_cancellation_date" type="date"></label>
+                  <label class="location-form-field span-2"><span class="location-form-label">GST Cancellation Reason</span><input name="gst_cancellation_reason" data-entity-field="gst_cancellation_reason" placeholder="Reason, if registration is cancelled"></label>
                 </div>
               </section>
 
@@ -10169,6 +10204,9 @@
     const parentEntities = {};
 
     const entityMasterDetails = {};
+
+    const entityGstRegistrations = [];
+    const entityTaxRegistrations = [];
 
     const existingLocationRecords = {};
 
@@ -11867,6 +11905,10 @@
       if (recordType === "entity") {
         const mapped = subLocations.filter(location => String(location.parentCode || "") === String(recordId || "")).length;
         if (mapped) dependencies.push(`${mapped} mapped Sub Location${mapped === 1 ? "" : "s"}`);
+        const gstCount = entityGstRegistrations.filter(item => String(item.entity_id || "") === String(recordId || "")).length;
+        if (gstCount) dependencies.push(`${gstCount} GST registration${gstCount === 1 ? "" : "s"}`);
+        const taxCount = entityTaxRegistrations.filter(item => String(item.entity_id || "") === String(recordId || "")).length;
+        if (taxCount) dependencies.push(`${taxCount} tax registration${taxCount === 1 ? "" : "s"}`);
       }
       return [...new Set(dependencies)];
     }
@@ -12039,6 +12081,7 @@
         return {
           entity_id: row[0],
           legal_name: row[1],
+          trade_name: detail.trade_name || "",
           entity_type: row[2],
           entity_role: normalizeEntityRole(row[3]),
           status: row[4],
@@ -12048,7 +12091,19 @@
           gstin: detail.gstin || "",
           gst_type: detail.gst_type || "",
           pan_number: detail.pan_number || "",
-          cin_number: detail.cin_number || "",
+          registration_type: detail.registration_type || "",
+          registration_number: detail.registration_number || "",
+          incorporation_date: detail.incorporation_date || "",
+          business_commencement_date: detail.business_commencement_date || "",
+          legal_status: detail.legal_status || "Active",
+          status_effective_from: detail.status_effective_from || "",
+          closure_date: detail.closure_date || "",
+          closure_reason: detail.closure_reason || "",
+          tan_number: detail.tan_number || "",
+          taxpayer_type: detail.taxpayer_type || "",
+          gst_effective_from: detail.gst_effective_from || "",
+          gst_cancellation_date: detail.gst_cancellation_date || "",
+          gst_cancellation_reason: detail.gst_cancellation_reason || "",
           phone: detail.phone || "",
           email: detail.email || "",
           address_line1: detail.address_line1 || "",
@@ -12058,9 +12113,7 @@
           state: detail.state || "",
           country: detail.country || "India",
           admin_name: detail.admin_name || "",
-          admin_phone: detail.admin_phone || "",
-          commission_on_products: detail.commission_on_products || "0",
-          commission_on_services: detail.commission_on_services || "0"
+          admin_phone: detail.admin_phone || ""
         };
       });
     }
@@ -12708,6 +12761,7 @@
         return {
           ...details,
           ...access,
+          tenant_id: record.tenant_id || details.tenant_id || "",
           entity_id: record.entity_id || details.entity_id || "",
           legal_name: record.legal_name || details.legal_name || "",
           entity_role: record.entity_role || details.entity_role || "",
@@ -12823,6 +12877,7 @@
       return {
         authenticated: true,
         user_id: entity.user_id,
+        tenant_id: entity.tenant_id || data.tenants?.find(record => record.status !== "Inactive")?.tenant_id || "TEN-INDIPET",
         role_id: roleId,
         role_code: role?.role_code || roleId,
         role_name: isAdminRole ? "Admin" : role?.name || roleId,
@@ -12872,6 +12927,7 @@
       return {
         authenticated: true,
         user_id: employee.login_id,
+        tenant_id: employee.tenant_id || entity.tenant_id || "TEN-INDIPET",
         employee_id: employee.employee_id,
         employee_name: employee.employee_name,
         role_id: role.role_id,
@@ -12894,6 +12950,7 @@
       return {
         authenticated: true,
         user_id: credential?.user_id || userId,
+        tenant_id: credential?.tenant_id || primaryEntityRecord()?.tenant_id || "TEN-INDIPET",
         role_id: sharedAdminRoleId,
         role_code: sharedAdminRoleId,
         role_name: "Admin",
@@ -12971,6 +13028,8 @@
       selectedLocationId = null;
       clearObject(parentEntities);
       clearObject(entityMasterDetails);
+      entityGstRegistrations.length = 0;
+      entityTaxRegistrations.length = 0;
       clearObject(existingLocationRecords);
       clearObject(employeeRecordDetails);
       employeeFamilyMembers.length = 0;
@@ -13015,6 +13074,17 @@
       populateCountryMasterSelects();
       populateStateMasterSelects();
 
+      (data.entity_gst_registrations || []).forEach(record => entityGstRegistrations.push({
+        ...record,
+        is_primary: record.is_primary === true || ["true", "yes", "1"].includes(String(record.is_primary || "").toLowerCase()),
+        status: record.status || "Active"
+      }));
+      (data.entity_tax_registrations || []).forEach(record => entityTaxRegistrations.push({
+        ...record,
+        is_primary: record.is_primary === true || ["true", "yes", "1"].includes(String(record.is_primary || "").toLowerCase()),
+        status: record.status || "Active"
+      }));
+
       (data.entities || []).forEach(entity => {
         if (!entity.entity_id) return;
         const entityRole = normalizeEntityRole(entity.entity_role);
@@ -13028,15 +13098,37 @@
         ]);
         const details = entity.details && typeof entity.details === "object" ? entity.details : {};
         const access = entity.access && typeof entity.access === "object" ? entity.access : {};
+        const primaryGst = entityGstRegistrations.find(record => record.entity_id === entity.entity_id && record.is_primary)
+          || entityGstRegistrations.find(record => record.entity_id === entity.entity_id)
+          || null;
+        const primaryTan = entityTaxRegistrations.find(record => record.entity_id === entity.entity_id && String(record.registration_type || "").toUpperCase() === "TAN" && String(record.status || "Active") !== "Inactive") || null;
         entityMasterDetails[entity.entity_id] = {
           ...details,
           ...access,
+          trade_name: entity.trade_name || details.trade_name || "",
+          registration_type: entity.registration_type || details.registration_type || "",
+          registration_number: entity.registration_number || details.registration_number || "",
+          incorporation_date: entity.incorporation_date || details.incorporation_date || "",
+          business_commencement_date: entity.business_commencement_date || details.business_commencement_date || "",
+          pan_number: entity.pan_number || details.pan_number || primaryGst?.pan_number || "",
+          legal_status: entity.legal_status || details.legal_status || "Active",
+          status_effective_from: entity.status_effective_from || details.status_effective_from || "",
+          closure_date: entity.closure_date || details.closure_date || "",
+          closure_reason: entity.closure_reason || details.closure_reason || "",
+          schema_version: Number(entity.schema_version || details.schema_version || 1) || 1,
+          gstin: primaryGst?.gstin || "",
+          gst_type: primaryGst?.gst_type || "",
+          taxpayer_type: primaryGst?.taxpayer_type || "",
+          gst_effective_from: primaryGst?.effective_from || "",
+          gst_cancellation_date: primaryGst?.cancellation_date || "",
+          gst_cancellation_reason: primaryGst?.cancellation_reason || "",
+          tan_number: primaryTan?.registration_number || "",
           entity_id: entity.entity_id,
           legal_name: entity.legal_name || "",
           entity_type: entity.entity_type || "",
           entity_role: entityRole,
           status: entity.status || "Active",
-          gstRegistered: Boolean(details.gstRegistered || details.gstin)
+          gstRegistered: Boolean(primaryGst?.gstin)
         };
         parentEntities[entity.entity_id] = entity.legal_name || entity.entity_id;
       });
@@ -13189,11 +13281,13 @@
     }
 
     function mergeHrmsReserveWithErpCore(hrmsData = {}, erpData = null) {
-      if (!erpData || typeof erpData !== "object") return { ...(hrmsData || {}), entity_gst_registrations: [], state_masters: [] };
+      if (!erpData || typeof erpData !== "object") return { ...(hrmsData || {}), entity_gst_registrations: [], entity_tax_registrations: [], franchise_agreements: [], state_masters: [] };
       return {
         ...hrmsData,
         entities: Array.isArray(erpData.entities) ? erpData.entities : hrmsData.entities || [],
         entity_gst_registrations: Array.isArray(erpData.entity_gst_registrations) ? erpData.entity_gst_registrations : [],
+        entity_tax_registrations: Array.isArray(erpData.entity_tax_registrations) ? erpData.entity_tax_registrations : [],
+        franchise_agreements: Array.isArray(erpData.franchise_agreements) ? erpData.franchise_agreements : [],
         locations: Array.isArray(erpData.locations) ? erpData.locations : hrmsData.locations || [],
         module_rows: Array.isArray(erpData.module_rows)
           ? HrmsModuleRowStore.mergeModuleRows(hrmsData.module_rows, erpData.module_rows)
@@ -13259,6 +13353,39 @@
       }
       const message = String(lastError?.message || "ERP Core is unavailable.");
       const error = new Error(message);
+      error.blockers = lastError?.blockers || [];
+      throw error;
+    }
+
+    async function persistHrmsErpCoreBatch(tables) {
+      const snapshots = Object.fromEntries(Object.entries(tables || {}).map(([table, rows]) => [table, Array.isArray(rows) ? rows : []]));
+      const endpoints = [...new Set([hrmsErpCoreApiBaseUrl, hrmsErpCoreApiFallbackUrl])];
+      let lastError = null;
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(`${endpoint}/batch`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(snapshots)
+          });
+          const acknowledgement = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const error = new Error(acknowledgement?.error || `ERP Core organization batch save failed with ${response.status}.`);
+            error.status = response.status;
+            error.blockers = acknowledgement?.blockers || [];
+            throw error;
+          }
+          const complete = acknowledgement?.ok === true && Object.entries(snapshots)
+            .every(([table, rows]) => Number(acknowledgement?.counts?.[table]) === rows.length);
+          if (!complete) throw new Error("ERP Core did not acknowledge every Entity Master companion record.");
+          await fetchHrmsErpCoreReserve();
+          return acknowledgement;
+        } catch (error) {
+          lastError = error;
+          if (Number(error?.status) >= 400 && Number(error?.status) < 500) break;
+        }
+      }
+      const error = new Error(String(lastError?.message || "ERP Core is unavailable."));
       error.blockers = lastError?.blockers || [];
       throw error;
     }
@@ -13422,13 +13549,27 @@
       const snapshot = {
         entities: pageConfig["entity-master"].rows.map(row => {
           const details = entityMasterDetails[row[0]] || {};
+          const schemaVersion = Number(details.schema_version || 1) || 1;
+          const cleanDetails = { ...details, schema_version: schemaVersion };
+          ["gstin", "gst_type", "taxpayer_type", "gst_effective_from", "gst_cancellation_date", "gst_cancellation_reason", "tan_number", "cin_number", "commission_on_products", "commission_on_services"].forEach(key => delete cleanDetails[key]);
           return {
             entity_id: row[0],
             legal_name: row[1],
+            trade_name: details.trade_name || "",
             entity_type: row[2],
+            registration_type: details.registration_type || "",
+            registration_number: details.registration_number || "",
+            incorporation_date: details.incorporation_date || "",
+            business_commencement_date: details.business_commencement_date || "",
+            pan_number: details.pan_number || "",
             entity_role: row[3],
+            legal_status: details.legal_status || "Active",
+            status_effective_from: details.status_effective_from || "",
+            closure_date: details.closure_date || "",
+            closure_reason: details.closure_reason || "",
             status: row[4],
-            details,
+            schema_version: schemaVersion,
+            details: cleanDetails,
             access: {
               user_id: details.user_id || "",
               role_id: details.role_id || "",
@@ -13437,6 +13578,8 @@
             }
           };
         }),
+        entity_gst_registrations: entityGstRegistrations.map(record => ({ ...record })),
+        entity_tax_registrations: entityTaxRegistrations.map(record => ({ ...record })),
         locations: subLocations.map(location => ({
           id: location.id,
           name: location.name,
@@ -21520,12 +21663,25 @@
       return {
         entity_id: "",
         legal_name: "",
+        trade_name: "",
         entity_type: "",
         entity_role: "",
         gstin: "",
         gst_type: "",
         pan_number: "",
-        cin_number: "",
+        registration_type: "",
+        registration_number: "",
+        incorporation_date: "",
+        business_commencement_date: "",
+        legal_status: "Active",
+        status_effective_from: "",
+        closure_date: "",
+        closure_reason: "",
+        tan_number: "",
+        taxpayer_type: "",
+        gst_effective_from: "",
+        gst_cancellation_date: "",
+        gst_cancellation_reason: "",
         phone: "",
         email: "",
         address_line1: "",
@@ -21720,7 +21876,7 @@
       applyPincodeAddress("entity");
       syncEntityPanFromGstin(false);
       syncEntityStateCode();
-      return $$("[data-entity-field]").reduce((record, field) => {
+      const record = $$("[data-entity-field]").reduce((record, field) => {
         const key = field.dataset.entityField;
         record[key] = key === "country"
           ? field.value.trim() || defaultCountryName()
@@ -21729,6 +21885,12 @@
             : field.value.trim();
         return record;
       }, emptyEntityRecord());
+      record.pan_number = String(record.pan_number || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      record.tan_number = String(record.tan_number || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      record.registration_number = String(record.registration_number || "").trim().toUpperCase();
+      if (record.entity_type === "Company" && !record.registration_type) record.registration_type = "CIN";
+      if (record.entity_type === "LLP" && !record.registration_type) record.registration_type = "LLPIN";
+      return record;
     }
 
     function panFromGstin(gstin) {
@@ -21784,6 +21946,67 @@
         record[key] = field.value.trim();
         return record;
       }, {});
+    }
+
+    function updateEntityCompanionRegistrations(record, entityId) {
+      const now = new Date().toISOString();
+      const existingGstRows = entityGstRegistrations.filter(item => item.entity_id === entityId);
+      const existingPrimaryGst = existingGstRows.find(item => item.is_primary) || existingGstRows[0] || null;
+      const retainedGstRows = existingGstRows.filter(item => item !== existingPrimaryGst);
+      const normalizedGstin = String(record.gstin || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const nextGstRows = [...retainedGstRows];
+      if (normalizedGstin) {
+        const stateCode = gstStateCodeFromGstin(normalizedGstin);
+        const state = stateMasterByGstCode(stateCode);
+        nextGstRows.unshift({
+          ...(existingPrimaryGst || {}),
+          registration_id: existingPrimaryGst?.registration_id || `GST-${entityId}-${stateCode || "PRIMARY"}`,
+          entity_id: entityId,
+          gstin: normalizedGstin,
+          gst_type: record.gst_type || "Regular",
+          taxpayer_type: record.taxpayer_type || "",
+          trade_name: record.trade_name || "",
+          state_code: state?.gst_state_code || stateCode,
+          state_name: state?.state_name || record.state || "",
+          pan_number: panFromGstin(normalizedGstin) || record.pan_number || "",
+          registered_address: [record.address_line1, record.address_line2].filter(Boolean).join(", "),
+          pincode: record.pincode || "",
+          effective_from: record.gst_effective_from || "",
+          cancellation_date: record.gst_cancellation_date || "",
+          cancellation_reason: record.gst_cancellation_reason || "",
+          is_primary: true,
+          status: record.gst_cancellation_date ? "Cancelled" : "Active",
+          created_at: existingPrimaryGst?.created_at || now,
+          updated_at: now
+        });
+      }
+      entityGstRegistrations.splice(0, entityGstRegistrations.length,
+        ...entityGstRegistrations.filter(item => item.entity_id !== entityId),
+        ...nextGstRows
+      );
+
+      const existingTaxRows = entityTaxRegistrations.filter(item => item.entity_id === entityId);
+      const existingTan = existingTaxRows.find(item => String(item.registration_type || "").toUpperCase() === "TAN") || null;
+      const retainedTaxRows = existingTaxRows.filter(item => item !== existingTan);
+      const tan = String(record.tan_number || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (tan) retainedTaxRows.push({
+        ...(existingTan || {}),
+        registration_id: existingTan?.registration_id || `TAN-${entityId}`,
+        entity_id: entityId,
+        registration_type: "TAN",
+        registration_number: tan,
+        jurisdiction: existingTan?.jurisdiction || "",
+        effective_from: existingTan?.effective_from || "",
+        effective_to: existingTan?.effective_to || "",
+        is_primary: true,
+        status: existingTan?.status || "Active",
+        created_at: existingTan?.created_at || now,
+        updated_at: now
+      });
+      entityTaxRegistrations.splice(0, entityTaxRegistrations.length,
+        ...entityTaxRegistrations.filter(item => item.entity_id !== entityId),
+        ...retainedTaxRows
+      );
     }
 
     function renderEntityLinkedLocationsLegacyList() {
@@ -22017,6 +22240,28 @@
         };
       }
 
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(record.pan_number || "")) {
+        return { valid: false, message: "PAN must contain 5 letters, 4 digits and 1 final letter.", fields: [$('[data-entity-field="pan_number"]')] };
+      }
+      if (record.entity_type === "Company" && (record.registration_type !== "CIN" || !record.registration_number)) {
+        return { valid: false, message: "Company entities require a CIN.", fields: [$('[data-entity-field="registration_number"]')] };
+      }
+      if (record.entity_type === "LLP" && (record.registration_type !== "LLPIN" || !record.registration_number)) {
+        return { valid: false, message: "LLP entities require an LLPIN.", fields: [$('[data-entity-field="registration_number"]')] };
+      }
+      if (record.registration_type === "CIN" && record.registration_number && !/^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/.test(record.registration_number.replace(/[^A-Z0-9]/g, ""))) {
+        return { valid: false, message: "CIN must be a valid 21-character Corporate Identity Number.", fields: [$('[data-entity-field="registration_number"]')] };
+      }
+      if (record.registration_type === "LLPIN" && record.registration_number && !/^[A-Z]{3}-?[0-9]{4}$/.test(record.registration_number)) {
+        return { valid: false, message: "LLPIN must use the format AAA-1234.", fields: [$('[data-entity-field="registration_number"]')] };
+      }
+      if (record.tan_number && !/^[A-Z]{4}[0-9]{5}[A-Z]$/.test(record.tan_number)) {
+        return { valid: false, message: "TAN must contain 4 letters, 5 digits and 1 final letter.", fields: [$('[data-entity-field="tan_number"]')] };
+      }
+      if (["Closed", "Dissolved"].includes(record.legal_status) && (!record.closure_date || !record.closure_reason)) {
+        return { valid: false, message: "Closure Date and Closure Reason are required for Closed or Dissolved entities.", fields: [!record.closure_date ? $('[data-entity-field="closure_date"]') : $('[data-entity-field="closure_reason"]')] };
+      }
+
       const emailField = $('[data-entity-field="email"]');
       if (record.email && !emailField.validity.valid) {
         return {
@@ -22075,10 +22320,12 @@
       entityMasterDetails[entityId] = {
         ...finalRecord,
         ...accessRecord,
+        schema_version: 2,
         entity_role: finalRecord.entity_role,
         status: finalRecord.status,
         gstRegistered: Boolean(finalRecord.gstin)
       };
+      updateEntityCompanionRegistrations(finalRecord, entityId);
       parentEntities[entityId] = finalRecord.legal_name;
       if (finalRecord.entity_role === "Primary" || !activeOperatingContext()) {
         setOperatingEntityContext(finalRecord);
@@ -22092,7 +22339,13 @@
       selectedEntityId = entityId;
       let erpSaved = false;
       try {
-        await persistHrmsErpCoreTable("entities", hrmsReserveSnapshot().entities);
+        const snapshot = hrmsReserveSnapshot();
+        await persistHrmsErpCoreBatch({
+          entities: snapshot.entities,
+          entity_gst_registrations: snapshot.entity_gst_registrations,
+          entity_tax_registrations: snapshot.entity_tax_registrations,
+          locations: snapshot.locations
+        });
         erpSaved = true;
         if (await persistHrmsReserve() !== "excel") {
           throw new Error("ERP Core saved the entity, but HRMS did not acknowledge its operating context. Reload and retry the HRMS context save.");
@@ -22125,10 +22378,12 @@
         ...(entityMasterDetails[activeEntityRecordId] || {}),
         ...record,
         ...collectEntityAccessRecord(),
+        schema_version: 2,
         entity_role: record.entity_role,
         status: record.status,
         gstRegistered: Boolean(record.gstin)
       };
+      updateEntityCompanionRegistrations(record, activeEntityRecordId);
       parentEntities[activeEntityRecordId] = record.legal_name;
       subLocations
         .filter(location => location.parentCode === activeEntityRecordId)
@@ -22143,7 +22398,13 @@
       selectedEntityId = activeEntityRecordId;
       let erpSaved = false;
       try {
-        await persistHrmsErpCoreTable("entities", hrmsReserveSnapshot().entities);
+        const snapshot = hrmsReserveSnapshot();
+        await persistHrmsErpCoreBatch({
+          entities: snapshot.entities,
+          entity_gst_registrations: snapshot.entity_gst_registrations,
+          entity_tax_registrations: snapshot.entity_tax_registrations,
+          locations: snapshot.locations
+        });
         erpSaved = true;
         if (await persistHrmsReserve() !== "excel") {
           throw new Error("ERP Core saved the entity, but HRMS did not acknowledge its operating context. Reload and retry the HRMS context save.");
@@ -23625,7 +23886,7 @@
 
     function blockAddUntilPrimaryEntity(actionName = "add records") {
       if (hasPrimaryEntity()) return false;
-      showToast(`Create the Primary Entity in ERP Core before you ${actionName}.`);
+      showToast(`Create the Primary Entity in ERP Core before you ${actionName}.`, "error");
       return true;
     }
 
@@ -25042,7 +25303,24 @@
     }
 
     function attendancePenaltySnapshot() {
-      return hrmsReserveSnapshot();
+      return {
+        attendance: attendanceRecords.map(record => ({ ...record })),
+        module_rows: (moduleRowSourceRecords["attendance-list"] || []).map(record => ({
+          ...record,
+          pageKey: "attendance-list",
+          details: record?.details && typeof record.details === "object" ? { ...record.details } : {},
+          cells: Array.isArray(record?.cells) ? [...record.cells] : []
+        })),
+        attendance_penalty_rules: attendancePenaltyRules.map(rule => ({ ...rule })),
+        attendance_incident_counters: attendanceIncidentCounters.map(counter => ({ ...counter })),
+        attendance_penalty_transactions: attendancePenaltyTransactions.map(transaction => ({
+          ...transaction,
+          source_attendance_ids: Array.isArray(transaction.source_attendance_ids) ? [...transaction.source_attendance_ids] : [],
+          source_dates: Array.isArray(transaction.source_dates) ? [...transaction.source_dates] : []
+        })),
+        attendance_penalty_audit: attendancePenaltyAudit.map(audit => ({ ...audit })),
+        leave_ledger: leaveLedgerEntries.map(entry => ({ ...entry }))
+      };
     }
 
     function reconcileAttendancePenaltyEntries() {
@@ -30029,6 +30307,11 @@
           updateEntityAccessState();
           updateEntityAdminContactState();
         }
+        if (field.dataset.entityField === "entity_type") {
+          const registrationType = $('[data-entity-field="registration_type"]');
+          if (registrationType && field.value === "Company") registrationType.value = "CIN";
+          if (registrationType && field.value === "LLP") registrationType.value = "LLPIN";
+        }
         if (field.dataset.entityField === "gstin") syncEntityPanFromGstin();
         if (field.dataset.entityField === "pincode") applyPincodeAddress("entity", true);
         if (field.dataset.entityField === "state") {
@@ -30527,7 +30810,16 @@
       refreshIcons();
     }
 
-    void initializeHrmsWorkspace();
+    void initializeHrmsWorkspace().catch(error => {
+      console.error("HRMS workspace initialization failed.", error);
+      document.body.dataset.hrmsInitializationError = String(error?.message || error || "Unknown initialization error");
+      requireHrmsLogin();
+      const message = document.getElementById("hrmsLoginMessage");
+      if (message) {
+        message.hidden = false;
+        message.querySelector("span").textContent = "HRMS could not finish loading its Excel-backed data. Restart the local services and try again.";
+      }
+    });
   </script>
 </body>
 </html>

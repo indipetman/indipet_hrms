@@ -4,8 +4,11 @@
   if (root) root.HrmsDataBoundary = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function createHrmsDataBoundary() {
   const sharedOrganizationTables = Object.freeze([
+    "tenants",
     "entities",
     "entity_gst_registrations",
+    "entity_tax_registrations",
+    "franchise_agreements",
     "locations",
     "country_masters",
     "state_masters",

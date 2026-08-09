@@ -38,8 +38,9 @@ test("HRMS Excel API validates ERP-owned keys and fails closed when ERP Core is 
 
   const erpPort = await reservePort();
   const erpOrganization = {
-    entities: [{ entity_id: "ENT-1", status: "Active" }],
-    locations: [{ id: "LOC-1", parentCode: "ENT-1", status: "Active" }]
+    tenants: [{ tenant_id: "TEN-INDIPET", status: "Active" }],
+    entities: [{ tenant_id: "TEN-INDIPET", entity_id: "ENT-1", entity_role: "Primary", status: "Active" }],
+    locations: [{ tenant_id: "TEN-INDIPET", id: "LOC-1", parentCode: "ENT-1", status: "Active" }]
   };
   let blockedMasterId = "DEP-1";
   const erpServer = http.createServer((request, response) => {
@@ -163,5 +164,7 @@ test("HRMS Excel API validates ERP-owned keys and fails closed when ERP Core is 
 
   const reloaded = await fetch(`${origin}/api/mock-db/employees`).then(response => response.json());
   assert.equal(reloaded.length, 1);
+  assert.equal(reloaded[0].tenant_id, "TEN-INDIPET");
+  assert.equal(reloaded[0].record.tenant_id, "TEN-INDIPET");
   assert.equal(reloaded[0].record.location_id, "LOC-1");
 });

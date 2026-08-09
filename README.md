@@ -24,9 +24,11 @@ npm run mock:init
 npm run mock:server
 ```
 
-Then open `http://localhost:4318/hrms_dashboard_nav_visual.html`. Run the ERP server on port `4317` at the same time so HRMS can read its entities, locations, roles, and geography from `GET /api/erp-core/organization`.
+Then open `http://localhost:4318/hrms_dashboard_nav_visual.html`. Run the ERP server on port `4317` at the same time so HRMS can read its Tenant workspace, entities, locations, roles, and geography from `GET /api/erp-core/organization`.
 
-ERP Core is the single source of truth for entities, locations, Role Master, countries, states, pincodes, and cities. Entity and location forms exposed in HRMS write through the ERP Core API and show success only after ERP acknowledges the exact row count. The HRMS server rejects attempts to write shared fields with HTTP `409`, including Role Master rows sent through `module_rows`. Browser recovery snapshots contain HRMS-owned records only.
+ERP Core is the single source of truth for the hidden Tenant registry, entities, locations, Role Master, countries, states, pincodes, and cities. Entity and location forms exposed in HRMS write through the ERP Core API and show success only after ERP acknowledges the exact row count. The HRMS server rejects attempts to write shared fields with HTTP `409`, including Tenant records and Role Master rows sent through `module_rows`. Browser recovery snapshots contain HRMS-owned records only.
+
+Every HRMS-owned worksheet has a `tenant_id` column. The HRMS server derives it from the active ERP Core Tenant, also stamps the employee record JSON, and rejects all non-empty HRMS writes until the Primary Entity exists. Department and Designation can remain Tenant-wide masters, but they can no longer be saved as unowned records before Primary setup.
 
 HRMS validates every persisted entity and location key against ERP Core and fails closed when ERP is unavailable. Set `ERP_CORE_ORIGIN` when ERP is not running at `http://127.0.0.1:4317`. `HRMS_REQUIRE_ERP_CORE=0` is reserved for isolated automated tests with no ERP fixture.
 

@@ -100,6 +100,21 @@ const validateBootstrapCredentials = (env = process.env) => {
   return { ok: true, credentials };
 };
 
+const resolveBootstrapCredentials = (env = process.env, { allowLocalDevelopmentDefault = false } = {}) => {
+  const credentials = bootstrapCredentials(env);
+  const localDefaultRequested = String(env.INDIPET_LOCAL_DEVELOPMENT_BOOTSTRAP || "").trim() === "1";
+  if (allowLocalDevelopmentDefault && localDefaultRequested) {
+    if (!credentials.userId || !credentials.password) {
+      return {
+        ok: false,
+        error: "Local first-run ERP access is incomplete. Set both bootstrap credential values."
+      };
+    }
+    return { ok: true, credentials, localDevelopmentDefault: true };
+  }
+  return validateBootstrapCredentials(env);
+};
+
 module.exports = {
   RELEASE_MARKER_NAME,
   RELEASE_TYPE,
@@ -107,5 +122,6 @@ module.exports = {
   bootstrapCredentials,
   pathIsWithin,
   productionMode,
+  resolveBootstrapCredentials,
   validateBootstrapCredentials
 };

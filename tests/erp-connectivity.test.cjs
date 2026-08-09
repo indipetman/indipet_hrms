@@ -7,13 +7,14 @@ const {
 } = require("../hrms-erp-connectivity.cjs");
 
 const organization = {
+  tenants: [{ tenant_id: "TEN-INDIPET", status: "Active" }],
   entities: [
-    { entity_id: "ENT-1", status: "Active" },
-    { entity_id: "ENT-X", status: "Inactive" }
+    { tenant_id: "TEN-INDIPET", entity_id: "ENT-1", entity_role: "Primary", status: "Active" },
+    { tenant_id: "TEN-INDIPET", entity_id: "ENT-X", status: "Inactive" }
   ],
   locations: [
-    { id: "LOC-1", parentCode: "ENT-1", status: "Active" },
-    { id: "LOC-X", parentCode: "ENT-1", status: "Inactive" }
+    { tenant_id: "TEN-INDIPET", id: "LOC-1", parentCode: "ENT-1", status: "Active" },
+    { tenant_id: "TEN-INDIPET", id: "LOC-X", parentCode: "ENT-1", status: "Inactive" }
   ]
 };
 

@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
     "mock:init": "node server.mjs --init",
     "mock:server": "node server.mjs",
     "test": "node --test tests/*.test.cjs"
