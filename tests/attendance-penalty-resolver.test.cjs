@@ -45,6 +45,7 @@ function snapshot(overrides = {}) {
     attendance_incident_counters: [],
     attendance_penalty_transactions: [],
     attendance_penalty_audit: [],
+    in_app_notifications: [],
     attendance: [],
     module_rows: [
       attendanceRow("ATT001", "2026-08-01"),
@@ -138,6 +139,21 @@ test("rejecting a source attendance reverses an unapplied-payroll consequence", 
   assert.equal(Resolver.leaveDeductionUnits(second.attendance_penalty_transactions, "EMP001", "CL"), 0);
 });
 
+test("a reversed consequence is reactivated without duplicating its deterministic transaction ID", () => {
+  const first = Resolver.reconcile(snapshot(), { now: "2026-08-08T10:00:00.000Z" }).snapshot;
+  const transactionId = first.attendance_penalty_transactions[0].transaction_id;
+  first.module_rows[2] = attendanceRow("ATT003", "2026-08-08", "Late Arrival", "REJECTED");
+  const reversed = Resolver.reconcile(first, { now: "2026-08-09T10:00:00.000Z" }).snapshot;
+  assert.equal(reversed.attendance_penalty_transactions[0].workflow_status, "REVERSED");
+  reversed.module_rows[2] = attendanceRow("ATT003", "2026-08-08", "Late Arrival", "APPROVED");
+  const reactivated = Resolver.reconcile(reversed, { now: "2026-08-10T10:00:00.000Z" }).snapshot;
+  assert.equal(reactivated.attendance_penalty_transactions.length, 1);
+  assert.equal(reactivated.attendance_penalty_transactions[0].transaction_id, transactionId);
+  assert.equal(reactivated.attendance_penalty_transactions[0].workflow_status, "APPLIED");
+  assert.equal(reactivated.attendance_penalty_audit.at(-1).action, "REACTIVATED");
+  assert.equal(Resolver.validateSnapshot(reactivated).ok, true);
+});
+
 test("moving attendance to another policy reverses the former policy consequence", () => {
   const first = Resolver.reconcile(snapshot(), { now: "2026-08-08T10:00:00.000Z" }).snapshot;
   first.attendance_policies.push({ policy_id: "ATP002", status: "Active" });
@@ -161,4 +177,50 @@ test("integrity validation rejects a leave-deduction rule without a leave type",
   const validation = Resolver.validateSnapshot(invalid);
   assert.equal(validation.ok, false);
   assert.match(validation.blockers.map(item => item.detail).join(" "), /requires a leave type/i);
+});
+
+test("Warning Only creates one unread in-app notification without deducting leave or pay", () => {
+  const input = snapshot();
+  input.attendance_penalty_rules[0].consequence_type = "WARNING";
+  input.attendance_penalty_rules[0].leave_code = "";
+  const result = Resolver.reconcile(input, { now: "2026-08-08T10:00:00.000Z" }).snapshot;
+  assert.equal(result.attendance_penalty_transactions[0].consequence_type, "WARNING");
+  assert.equal(Resolver.leaveDeductionUnits(result.attendance_penalty_transactions, "EMP001", "CL"), 0);
+  assert.equal(Resolver.lossOfPayCandidates(result.attendance_penalty_transactions).length, 0);
+  assert.equal(result.in_app_notifications.length, 1);
+  assert.equal(result.in_app_notifications[0].source_id, result.attendance_penalty_transactions[0].transaction_id);
+  assert.equal(result.in_app_notifications[0].recipient_employee_id, "EMP001");
+  assert.equal(result.in_app_notifications[0].status, "ACTIVE");
+  assert.equal(result.in_app_notifications[0].read_status, "UNREAD");
+  assert.match(result.in_app_notifications[0].message, /3 Late Arrival incidents/);
+  assert.match(result.in_app_notifications[0].message, /No leave or pay deduction was applied/);
+});
+
+test("Warning Only notification reconciliation is idempotent and preserves read state", () => {
+  const input = snapshot();
+  input.attendance_penalty_rules[0].consequence_type = "WARNING";
+  input.attendance_penalty_rules[0].leave_code = "";
+  const first = Resolver.reconcile(input, { now: "2026-08-08T10:00:00.000Z" }).snapshot;
+  first.in_app_notifications[0].read_status = "READ";
+  first.in_app_notifications[0].read_at = "2026-08-08T11:00:00.000Z";
+  first.in_app_notifications[0].updated_at = "2026-08-08T11:00:00.000Z";
+  const second = Resolver.reconcile(first, { now: "2026-08-09T10:00:00.000Z" }).snapshot;
+  const third = Resolver.reconcile(second, { now: "2026-08-10T10:00:00.000Z" }).snapshot;
+  assert.equal(second.in_app_notifications.length, 1);
+  assert.equal(second.in_app_notifications[0].read_status, "READ");
+  assert.equal(second.in_app_notifications[0].read_at, "2026-08-08T11:00:00.000Z");
+  assert.deepEqual(third.in_app_notifications, second.in_app_notifications);
+});
+
+test("reversing a Warning Only transaction resolves its notification", () => {
+  const input = snapshot();
+  input.attendance_penalty_rules[0].consequence_type = "WARNING";
+  input.attendance_penalty_rules[0].leave_code = "";
+  const first = Resolver.reconcile(input, { now: "2026-08-08T10:00:00.000Z" }).snapshot;
+  first.module_rows[2] = attendanceRow("ATT003", "2026-08-08", "Late Arrival", "REJECTED");
+  const second = Resolver.reconcile(first, { now: "2026-08-09T10:00:00.000Z" }).snapshot;
+  assert.equal(second.attendance_penalty_transactions[0].workflow_status, "REVERSED");
+  assert.equal(second.in_app_notifications.length, 1);
+  assert.equal(second.in_app_notifications[0].status, "RESOLVED");
+  assert.equal(second.in_app_notifications[0].resolved_at, "2026-08-09T10:00:00.000Z");
 });

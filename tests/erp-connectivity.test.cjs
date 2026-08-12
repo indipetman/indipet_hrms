@@ -22,6 +22,7 @@ test("HRMS organization references cover ERP-owned entity and location keys", ()
   const snapshot = {
     employees: [{ employee_id: "E1", record: { parent_entity_id: "ENT-1", location_id: "LOC-1" } }],
     attendance: [{ id: "A1", entity_id: "ENT-1", location_id: "LOC-1" }],
+    in_app_notifications: [{ notification_id: "N1", entity_id: "ENT-1", location_id: "LOC-1" }],
     leave_policies: [{ policy_id: "LP1", organization_id: "ENT-1" }],
     shift_policies: [{ policy_id: "SP1", location_id: "LOC-1" }],
     rosters: [{ roster_id: "R1", location_id: "LOC-1" }],
@@ -31,6 +32,7 @@ test("HRMS organization references cover ERP-owned entity and location keys", ()
   assert.equal(needsOrganizationSnapshot(snapshot), true);
   assert.equal(references.some(reference => reference.table === "employees" && reference.reference_type === "entity"), true);
   assert.equal(references.some(reference => reference.table === "shift_policies" && reference.reference_type === "location"), true);
+  assert.equal(references.some(reference => reference.table === "in_app_notifications" && reference.reference_type === "location"), true);
   assert.equal(validateAgainstOrganization(snapshot, organization).ok, true);
 });
 
@@ -55,6 +57,23 @@ test("missing, inactive and cross-entity ERP references are rejected", () => {
   assert.equal(result.blockers.some(blocker => blocker.reference_id === "ENT-404" && /does not exist/.test(blocker.reason)), true);
   assert.equal(result.blockers.some(blocker => blocker.reference_id === "ENT-X" && /inactive/.test(blocker.reason)), true);
   assert.equal(result.blockers.some(blocker => blocker.reference_id === "LOC-1" && /belongs to entity ENT-1/.test(blocker.reason)), true);
+});
+
+test("every selected Holiday Calendar scope is validated against ERP Core", () => {
+  const snapshot = {
+    holiday_calendar: [{
+      holiday_id: "HOL-MULTI",
+      organization_id: "ENT-1",
+      scope_type: "LOCATION",
+      scope_key: "LOC-1",
+      scope_keys: ["LOC-1", "LOC-404"]
+    }]
+  };
+  const references = organizationReferences(snapshot).filter(reference => reference.table === "holiday_calendar");
+  assert.deepEqual(references.filter(reference => reference.reference_type === "location").map(reference => reference.reference_id), ["LOC-1", "LOC-404"]);
+  const result = validateAgainstOrganization(snapshot, organization);
+  assert.equal(result.ok, false);
+  assert.equal(result.blockers.some(blocker => blocker.reference_id === "LOC-404"), true);
 });
 
 test("empty HRMS databases do not require an ERP round trip", () => {

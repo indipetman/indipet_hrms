@@ -5,13 +5,64 @@ const AttendancePolicyResolver = require("../attendance-policy-resolver.cjs");
 
 const employee = {
   employeeId: "E1533",
+  tenantId: "TEN-INDIPET",
   organizationId: "INDIPET_ROOT",
   entityId: "SOU0001",
   locationValues: ["FRN001"],
   departmentValues: ["RETAIL"],
   designationValues: ["EXECUTIVE"],
-  shiftValues: ["CLOSING"]
+  shiftValues: ["CLOSING"],
+  genderValues: ["Female"]
 };
+
+test("Full Coverage validates Tenant and Entity ownership independently", () => {
+  const assignment = {
+    policy_id: "ATP-1",
+    assignment_mode: "INCLUDE",
+    target_type: "ENTITY",
+    target_key: "FULL_COVERAGE",
+    tenant_id: "TEN-INDIPET",
+    entity_id: "SOU0001"
+  };
+  assert.equal(AttendancePolicyResolver.assignmentMatches(assignment, employee), true);
+  assert.equal(AttendancePolicyResolver.assignmentMatches({ ...assignment, tenant_id: "TEN-OTHER" }, employee), false);
+  assert.equal(AttendancePolicyResolver.assignmentMatches({ ...assignment, entity_id: "ENT-OTHER" }, employee), false);
+  assert.equal(AttendancePolicyResolver.assignmentMatches(assignment, { ...employee, tenantId: "" }), false);
+  assert.equal(AttendancePolicyResolver.assignmentMatches(assignment, { ...employee, entityId: "" }), false);
+});
+
+test("approved historical configuration placeholders reconcile only after attendance becomes valid", () => {
+  const validAssessment = {
+    dayStatus: "Present",
+    status: "Present",
+    requiresReview: false,
+    autoApprovalEligible: true
+  };
+  assert.deepEqual(AttendancePolicyResolver.reconcileApprovedFinalStatus({
+    reviewStatus: "APPROVED",
+    finalStatus: "Pending Configuration",
+    assessment: validAssessment
+  }), {
+    changed: true,
+    previousStatus: "Pending Configuration",
+    finalStatus: "Present"
+  });
+  assert.equal(AttendancePolicyResolver.reconcileApprovedFinalStatus({
+    reviewStatus: "REJECTED",
+    finalStatus: "Pending Configuration",
+    assessment: validAssessment
+  }).changed, false);
+  assert.equal(AttendancePolicyResolver.reconcileApprovedFinalStatus({
+    reviewStatus: "APPROVED",
+    finalStatus: "Half Day",
+    assessment: validAssessment
+  }).changed, false);
+  assert.equal(AttendancePolicyResolver.reconcileApprovedFinalStatus({
+    reviewStatus: "APPROVED",
+    finalStatus: "Pending Configuration",
+    assessment: { ...validAssessment, requiresReview: true, autoApprovalEligible: false }
+  }).changed, false);
+});
 
 const activePolicy = (overrides = {}) => ({
   policy_id: "ATP-1",
@@ -84,6 +135,42 @@ test("an employee exclusion overrides Full Coverage", () => {
   assert.equal(assessment.policyApplied, false);
   assert.equal(assessment.issue, "Attendance Policy Missing");
   assert.equal(assessment.status, "Pending Configuration");
+});
+
+test("gender assignments match only employees with the selected gender", () => {
+  const femaleAssignment = { target_type: "GENDER", target_key: "Female" };
+  const maleAssignment = { target_type: "GENDER", target_key: "Male" };
+  assert.equal(AttendancePolicyResolver.assignmentMatches(femaleAssignment, employee), true);
+  assert.equal(AttendancePolicyResolver.assignmentMatches(maleAssignment, employee), false);
+  assert.equal(AttendancePolicyResolver.assignmentSpecificity(femaleAssignment, employee), 15);
+});
+
+test("matching leave policies combine distinct leave codes and override only duplicate codes", () => {
+  const policies = [
+    activePolicy({ policy_id: "LVP-BASE", policy_code: "LVP0001", updated_at: "2026-01-01T00:00:00.000Z" }),
+    activePolicy({ policy_id: "LVP-WOMEN", policy_code: "LVP0002", updated_at: "2026-08-10T00:00:00.000Z" })
+  ];
+  const assignments = [
+    { policy_id: "LVP-BASE", assignment_mode: "INCLUDE", target_type: "ENTITY", target_key: "FULL_COVERAGE" },
+    { policy_id: "LVP-WOMEN", assignment_mode: "INCLUDE", target_type: "GENDER", target_key: "Female" }
+  ];
+  const rules = [
+    { policy_id: "LVP-BASE", leave_code: "CL", leave_name: "Casual Leave", annual_entitlement_days: 12 },
+    { policy_id: "LVP-BASE", leave_code: "ML", leave_name: "Medical Leave", annual_entitlement_days: 6 },
+    { policy_id: "LVP-WOMEN", leave_code: "WPL", leave_name: "Women Privilege Leave", annual_entitlement_days: 6 },
+    { policy_id: "LVP-WOMEN", leave_code: "CL", leave_name: "Women Casual Leave", annual_entitlement_days: 14 }
+  ];
+  const resolved = AttendancePolicyResolver.resolveRuleSet({ policies, assignments, rules, employee });
+  assert.deepEqual(resolved.map(item => item.rule.leave_code), ["WPL", "CL", "ML"]);
+  assert.equal(resolved.find(item => item.rule.leave_code === "CL").policy.policy_id, "LVP-WOMEN");
+
+  const maleResolved = AttendancePolicyResolver.resolveRuleSet({
+    policies,
+    assignments,
+    rules,
+    employee: { ...employee, genderValues: ["Male"] }
+  });
+  assert.deepEqual(maleResolved.map(item => item.rule.leave_code), ["CL", "ML"]);
 });
 
 test("zero-minute grace applies only when a zero-grace policy actually matches", () => {

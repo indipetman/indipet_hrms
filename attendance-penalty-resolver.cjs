@@ -10,6 +10,7 @@
   const CONSEQUENCE_TYPES = new Set(["WARNING", "LEAVE_DEDUCTION", "LOSS_OF_PAY", "MANUAL_REVIEW"]);
   const WINDOW_TYPES = new Set(["CALENDAR_WEEK", "CALENDAR_MONTH", "CALENDAR_QUARTER", "CALENDAR_YEAR", "ROLLING_DAYS"]);
   const FALLBACK_ACTIONS = new Set(["LOSS_OF_PAY", "MANUAL_REVIEW", "SKIP"]);
+  const WARNING_NOTIFICATION_SOURCE = "ATTENDANCE_WARNING";
 
   const array = value => Array.isArray(value) ? value : [];
   const text = value => String(value ?? "").trim();
@@ -174,6 +175,93 @@
     return balances;
   }
 
+  function incidentLabel(value = "") {
+    return incidentCode(value)
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, character => character.toUpperCase());
+  }
+
+  function warningNotificationId(transactionIdValue = "") {
+    return `in-app-notification-${safe(transactionIdValue)}`;
+  }
+
+  function warningNotificationRecord(transaction = {}, prior = {}, now = new Date().toISOString()) {
+    const sourceDates = array(transaction.source_dates).map(normalizeDate).filter(Boolean);
+    const incident = incidentLabel(transaction.incident_code) || "Attendance";
+    const occurrenceThreshold = Math.max(1, Math.floor(number(transaction.occurrence_threshold, sourceDates.length || 1)));
+    const employeeName = text(transaction.employee_name || transaction.employee_id || "Employee");
+    const previousWasActive = upper(prior.status) === "ACTIVE";
+    const payload = {
+      rule_id: text(transaction.rule_id),
+      policy_id: text(transaction.policy_id),
+      source_attendance_ids: array(transaction.source_attendance_ids),
+      source_dates: sourceDates,
+      consequence_type: "WARNING"
+    };
+    const next = {
+      tenant_id: text(prior.tenant_id || transaction.tenant_id),
+      notification_id: text(prior.notification_id) || warningNotificationId(transaction.transaction_id),
+      source_type: WARNING_NOTIFICATION_SOURCE,
+      source_id: text(transaction.transaction_id),
+      recipient_type: "HRMS_MANAGER",
+      recipient_employee_id: text(transaction.employee_id),
+      employee_name: employeeName,
+      entity_id: text(transaction.entity_id),
+      location_id: text(transaction.location_id),
+      title: "Attendance warning",
+      message: `${employeeName} reached ${occurrenceThreshold} ${incident} incident${occurrenceThreshold === 1 ? "" : "s"} in ${text(transaction.period_key) || "the configured period"}. No leave or pay deduction was applied.`,
+      severity: "WARNING",
+      status: "ACTIVE",
+      read_status: previousWasActive && upper(prior.read_status) === "READ" ? "READ" : "UNREAD",
+      action_page: "attendance-list",
+      period_key: text(transaction.period_key),
+      incident_code: incidentCode(transaction.incident_code),
+      occurrence_threshold: occurrenceThreshold,
+      source_dates: sourceDates,
+      payload,
+      created_at: text(prior.created_at || transaction.created_at) || now,
+      updated_at: text(prior.updated_at || transaction.updated_at) || now,
+      read_at: previousWasActive && upper(prior.read_status) === "READ" ? text(prior.read_at) : "",
+      resolved_at: ""
+    };
+    const comparablePrior = { ...prior, updated_at: "" };
+    const comparableNext = { ...next, updated_at: "" };
+    if (!text(prior.notification_id) || JSON.stringify(comparablePrior) !== JSON.stringify(comparableNext)) next.updated_at = now;
+    return next;
+  }
+
+  function reconcileWarningNotifications(existingNotifications = [], transactions = [], now = new Date().toISOString()) {
+    const existing = array(existingNotifications).map(notification => ({ ...notification }));
+    const warningRecordsBySource = new Map();
+    existing.forEach(notification => {
+      if (upper(notification.source_type) !== WARNING_NOTIFICATION_SOURCE || !text(notification.source_id)) return;
+      if (!warningRecordsBySource.has(text(notification.source_id))) warningRecordsBySource.set(text(notification.source_id), notification);
+    });
+    const activeWarningTransactions = array(transactions)
+      .filter(transaction => upper(transaction.consequence_type) === "WARNING" && upper(transaction.workflow_status) === "APPLIED")
+      .sort((left, right) => text(left.created_at).localeCompare(text(right.created_at)) || text(left.transaction_id).localeCompare(text(right.transaction_id)));
+    const activeSources = new Set(activeWarningTransactions.map(transaction => text(transaction.transaction_id)));
+    const generated = activeWarningTransactions.map(transaction => warningNotificationRecord(
+      transaction,
+      warningRecordsBySource.get(text(transaction.transaction_id)) || {},
+      now
+    ));
+    const preserved = existing.flatMap(notification => {
+      if (upper(notification.source_type) !== WARNING_NOTIFICATION_SOURCE) return [{ ...notification }];
+      const sourceId = text(notification.source_id);
+      if (activeSources.has(sourceId) && warningRecordsBySource.get(sourceId) === notification) return [];
+      if (upper(notification.status) === "RESOLVED") return [{ ...notification }];
+      return [{
+        ...notification,
+        status: "RESOLVED",
+        resolved_at: text(notification.resolved_at) || now,
+        updated_at: now
+      }];
+    });
+    return [...generated, ...preserved];
+  }
+
   function reconcile(snapshot = {}, options = {}) {
     const now = text(options.now) || new Date().toISOString();
     const activeRules = array(snapshot.attendance_penalty_rules)
@@ -230,6 +318,9 @@
     const transactionById = new Map(nextTransactions
       .filter(transaction => upper(transaction.workflow_status) !== "REVERSED")
       .map(transaction => [text(transaction.transaction_id), transaction]));
+    const transactionIndexById = new Map(nextTransactions
+      .map((transaction, index) => [text(transaction.transaction_id), index])
+      .filter(([transactionId]) => transactionId));
     const existingCounters = new Map(array(snapshot.attendance_incident_counters)
       .map(counter => [text(counter.counter_id), counter]));
     const counters = [];
@@ -252,6 +343,10 @@
             const sourceIds = sources.map(event => event.attendance_id);
             const id = transactionId(rule.rule_id, employeeId, sourceIds);
             if (transactionById.has(id)) continue;
+            const priorTransactionIndex = transactionIndexById.get(id);
+            const priorTransaction = Number.isInteger(priorTransactionIndex)
+              ? nextTransactions[priorTransactionIndex]
+              : null;
             const employee = sources[0];
             let consequenceType = rule.consequence_type;
             let workflowStatus = consequenceType === "MANUAL_REVIEW" ? "MANUAL_REVIEW" : "APPLIED";
@@ -269,6 +364,7 @@
               workflowStatus = "SKIPPED";
             }
             const transaction = {
+              ...(priorTransaction || {}),
               transaction_id: id,
               rule_id: rule.rule_id,
               policy_id: rule.policy_id,
@@ -289,19 +385,26 @@
               ledger_id: "",
               reversal_reason: "",
               reversed_at: "",
-              created_at: now,
+              created_at: text(priorTransaction?.created_at) || now,
               updated_at: now
             };
-            nextTransactions.push(transaction);
+            if (Number.isInteger(priorTransactionIndex)) {
+              nextTransactions[priorTransactionIndex] = transaction;
+            } else {
+              nextTransactions.push(transaction);
+              transactionIndexById.set(id, nextTransactions.length - 1);
+            }
             transactionById.set(id, transaction);
             sourceIds.forEach(sourceId => consumedIds.add(sourceId));
             nextAudits.push({
-              audit_id: `attendance-penalty-audit-${fnv1a(`${id}|CREATED`)}`,
+              audit_id: `attendance-penalty-audit-${fnv1a(`${id}|${priorTransaction ? "REACTIVATED" : "CREATED"}|${priorTransaction ? now : ""}`)}`,
               transaction_id: id,
               rule_id: rule.rule_id,
               employee_id: employeeId,
-              action: "CREATED",
-              detail: `${rule.occurrence_threshold} ${rule.incident_code} incident(s) converted to ${consequenceType}.`,
+              action: priorTransaction ? "REACTIVATED" : "CREATED",
+              detail: priorTransaction
+                ? `${rule.occurrence_threshold} ${rule.incident_code} incident(s) became eligible again and the existing transaction was reactivated.`
+                : `${rule.occurrence_threshold} ${rule.incident_code} incident(s) converted to ${consequenceType}.`,
               payload: { source_attendance_ids: sourceIds, period_key: periodKey, units: rule.consequence_units },
               created_at: now
             });
@@ -331,13 +434,15 @@
         });
       });
     });
+    const nextNotifications = reconcileWarningNotifications(snapshot.in_app_notifications, nextTransactions, now);
     const result = {
       ...snapshot,
       attendance_incident_counters: counters,
       attendance_penalty_transactions: nextTransactions,
-      attendance_penalty_audit: nextAudits
+      attendance_penalty_audit: nextAudits,
+      in_app_notifications: nextNotifications
     };
-    return { snapshot: result, changed: ["attendance_incident_counters", "attendance_penalty_transactions", "attendance_penalty_audit"].some(table => JSON.stringify(array(snapshot[table])) !== JSON.stringify(array(result[table]))) };
+    return { snapshot: result, changed: ["attendance_incident_counters", "attendance_penalty_transactions", "attendance_penalty_audit", "in_app_notifications"].some(table => JSON.stringify(array(snapshot[table])) !== JSON.stringify(array(result[table]))) };
   }
 
   function leaveDeductionUnits(transactions = [], employeeId = "", leaveCode = "") {
@@ -387,14 +492,38 @@
       }
     });
     const transactionIds = new Set();
+    const transactionsById = new Map();
     array(snapshot.attendance_penalty_transactions).forEach(transaction => {
       const id = text(transaction.transaction_id);
-      if (!id || transactionIds.has(id)) blockers.push({ record_id: id || "(blank)", detail: "Penalty transaction ID must be present and unique." });
+      if (!id) blockers.push({ record_id: "(blank)", detail: "Penalty transaction ID is missing." });
+      else if (transactionIds.has(id)) blockers.push({ record_id: id, detail: `Penalty transaction ${id} is duplicated.` });
       transactionIds.add(id);
+      transactionsById.set(id, transaction);
       if (!ruleIds.has(text(transaction.rule_id))) blockers.push({ record_id: id, detail: `Penalty rule ${text(transaction.rule_id) || "(blank)"} does not exist.` });
       if (employeeIds.size && !employeeIds.has(text(transaction.employee_id))) blockers.push({ record_id: id, detail: `Employee ${text(transaction.employee_id) || "(blank)"} does not exist.` });
     });
-    return blockers.length ? { ok: false, error: "Attendance penalty integrity validation failed.", blockers, table: "attendance_penalty_rules" } : { ok: true, blockers: [] };
+    const notificationIds = new Set();
+    const warningSourceIds = new Set();
+    array(snapshot.in_app_notifications).forEach(notification => {
+      const id = text(notification.notification_id);
+      if (!id || notificationIds.has(id)) blockers.push({ record_id: id || "(blank)", detail: "In-app notification ID must be present and unique." });
+      notificationIds.add(id);
+      if (upper(notification.source_type) !== WARNING_NOTIFICATION_SOURCE) return;
+      const sourceId = text(notification.source_id);
+      if (!sourceId || warningSourceIds.has(sourceId)) blockers.push({ record_id: id || "(blank)", detail: "An attendance warning transaction may have only one in-app notification." });
+      warningSourceIds.add(sourceId);
+      const source = transactionsById.get(sourceId);
+      if (!source || upper(source.consequence_type) !== "WARNING") {
+        blockers.push({ record_id: id || "(blank)", detail: `Warning source transaction ${sourceId || "(blank)"} does not exist.` });
+      }
+      if (employeeIds.size && !employeeIds.has(text(notification.recipient_employee_id))) {
+        blockers.push({ record_id: id || "(blank)", detail: `Notification employee ${text(notification.recipient_employee_id) || "(blank)"} does not exist.` });
+      }
+      if (upper(notification.status) === "ACTIVE" && (!text(notification.entity_id) || !text(notification.location_id))) {
+        blockers.push({ record_id: id || "(blank)", detail: "Active attendance warning notifications require Entity and Location ownership." });
+      }
+    });
+    return blockers.length ? { ok: false, error: "Attendance penalty integrity validation failed.", blockers, table: blockers.some(item => /notification/i.test(item.detail)) ? "in_app_notifications" : "attendance_penalty_rules" } : { ok: true, blockers: [] };
   }
 
   return Object.freeze({
@@ -405,6 +534,7 @@
     lossOfPayCandidates,
     normalizedRule,
     reconcile,
+    reconcileWarningNotifications,
     validateSnapshot
   });
 });

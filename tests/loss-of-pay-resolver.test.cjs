@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
+const attendancePenaltyResolver = require("../attendance-penalty-resolver.cjs");
 const resolver = require("../loss-of-pay-resolver.cjs");
 
 const employee = { employee_id: "EMP-1", employee_name: "Example Employee" };
@@ -50,7 +51,7 @@ test("approved half-day LOP records 0.5 used units without deducting a leave bal
   assert.equal(result.entries[0].workflow_status, "APPROVED");
 });
 
-test("approved final absence creates LOP but weekly-off and holiday assignments do not", () => {
+test("approved final absence does not create LOP without an Attendance Policy consequence", () => {
   const attendance = {
     row_id: "ATT-1",
     pageKey: "attendance-list",
@@ -65,16 +66,97 @@ test("approved final absence creates LOP but weekly-off and holiday assignments 
       roster_shift: "Morning Shift"
     }
   };
-  assert.equal(resolver.reconcileEntries([], { employees: [employee], module_rows: [attendance] }).entries.length, 1);
-  assert.equal(resolver.reconcileEntries([], {
+  assert.equal(resolver.reconcileEntries([], { employees: [employee], module_rows: [attendance] }).entries.length, 0);
+});
+
+test("Attendance Policy is the only automatic source of absence LOP", () => {
+  const attendance = {
+    row_id: "ATT-1",
+    pageKey: "attendance-list",
+    status: "Absent",
+    cells: ["08/08/2026", "Example Employee", "EMP-1", "Main Store"],
+    details: {
+      record_id: "ATT-1",
+      employee_id: "EMP-1",
+      employee_name: "Example Employee",
+      entity_id: "ENT-1",
+      location_id: "LOC-1",
+      location: "Main Store",
+      work_date: "2026-08-08",
+      applied_policy_id: "ATP-1",
+      calculated_timing_issue: "No Show",
+      final_status: "Absent",
+      lifecycle_status: "APPROVED"
+    }
+  };
+  const policySnapshot = attendancePenaltyResolver.reconcile({
     employees: [employee],
-    module_rows: [{ ...attendance, details: { ...attendance.details, roster_shift: "Weekly Off" } }]
-  }).entries.length, 0);
-  assert.equal(resolver.reconcileEntries([], {
-    employees: [employee],
+    attendance_policies: [{ policy_id: "ATP-1", status: "Active" }],
+    attendance_penalty_rules: [{
+      rule_id: "APR-ABSENCE-LOP",
+      policy_id: "ATP-1",
+      incident_code: "ABSENCE",
+      occurrence_threshold: 1,
+      counting_period_type: "CALENDAR_MONTH",
+      counting_period_value: 30,
+      consequence_type: "LOSS_OF_PAY",
+      consequence_units: 0.5,
+      insufficient_balance_action: "MANUAL_REVIEW",
+      priority: 10,
+      status: "Active"
+    }],
+    attendance_incident_counters: [],
+    attendance_penalty_transactions: [],
+    attendance_penalty_audit: [],
+    in_app_notifications: [],
     module_rows: [attendance],
-    rosters: [{ weekly_offs: [{ employee_id: "EMP-1", date: "2026-08-08" }] }]
-  }).entries.length, 0);
+    leave_ledger: []
+  }).snapshot;
+  const result = resolver.reconcileEntries([], policySnapshot);
+  assert.equal(policySnapshot.attendance_penalty_transactions.length, 1);
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0].source_type, "ATTENDANCE_PENALTY");
+  assert.equal(result.entries[0].units, 0.5);
+  assert.equal(result.entries[0].pay_treatment, "LOSS_OF_PAY");
+});
+
+test("a Warning Only absence rule never creates LOP", () => {
+  const policySnapshot = attendancePenaltyResolver.reconcile({
+    employees: [employee],
+    attendance_policies: [{ policy_id: "ATP-1", status: "Active" }],
+    attendance_penalty_rules: [{
+      rule_id: "APR-ABSENCE-WARNING",
+      policy_id: "ATP-1",
+      incident_code: "ABSENCE",
+      occurrence_threshold: 1,
+      counting_period_type: "CALENDAR_MONTH",
+      consequence_type: "WARNING",
+      consequence_units: 1,
+      priority: 10,
+      status: "Active"
+    }],
+    attendance_incident_counters: [],
+    attendance_penalty_transactions: [],
+    attendance_penalty_audit: [],
+    in_app_notifications: [],
+    module_rows: [{
+      row_id: "ATT-WARNING",
+      pageKey: "attendance-list",
+      details: {
+        record_id: "ATT-WARNING",
+        employee_id: "EMP-1",
+        employee_name: "Example Employee",
+        work_date: "2026-08-08",
+        applied_policy_id: "ATP-1",
+        calculated_timing_issue: "No Show",
+        final_status: "Absent",
+        lifecycle_status: "APPROVED"
+      }
+    }],
+    leave_ledger: []
+  }).snapshot;
+  assert.equal(policySnapshot.attendance_penalty_transactions[0].consequence_type, "WARNING");
+  assert.equal(resolver.reconcileEntries([], policySnapshot).entries.length, 0);
 });
 
 test("one employee/date can have only one active LOP even when two sources exist", () => {

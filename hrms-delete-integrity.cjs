@@ -10,6 +10,11 @@
   const array = value => Array.isArray(value) ? value : [];
   const label = (count, singular, plural = `${singular}s`) => count ? `${count} ${count === 1 ? singular : plural}` : "";
   const unique = values => [...new Set(values.filter(Boolean))];
+  const holidayScopeKeys = record => {
+    const keys = array(record?.scope_keys).map(text).filter(Boolean);
+    if (!keys.length && text(record?.scope_key)) keys.push(text(record.scope_key));
+    return keys;
+  };
 
   function nestedReferences(value, target) {
     if (!target || value == null) return false;
@@ -229,6 +234,7 @@
     const penaltyRules = array(snapshot.attendance_penalty_rules);
     const penaltyCounters = array(snapshot.attendance_incident_counters);
     const penaltyTransactions = array(snapshot.attendance_penalty_transactions);
+    const notifications = array(snapshot.in_app_notifications);
     const leavePolicies = array(snapshot.leave_policies);
     const ledger = array(snapshot.leave_ledger);
     const holidays = array(snapshot.holiday_calendar);
@@ -256,6 +262,7 @@
       dependencies.push(label(attendance.filter(item => same(item.employee_id, recordId)).length, "attendance record"));
       dependencies.push(label(penaltyCounters.filter(item => same(item.employee_id, recordId)).length, "attendance incident counter"));
       dependencies.push(label(penaltyTransactions.filter(item => same(item.employee_id, recordId)).length, "attendance penalty transaction"));
+      dependencies.push(label(notifications.filter(item => same(item.recipient_employee_id, recordId)).length, "in-app notification"));
       dependencies.push(label(ledger.filter(item => same(item.employee_id, recordId)).length, "leave-ledger entry", "leave-ledger entries"));
       dependencies.push(label(rosters.filter(item => rosterReferencesEmployee(item, recordId)).length, "roster"));
       dependencies.push(label(modules.filter(item => nestedReferences(moduleRowDetails(item), recordId)).length, "workflow record"));
@@ -274,6 +281,7 @@
       dependencies.push(label(attendance.filter(item => same(item.policy_id, recordId) || same(item.rules?.policy_id, recordId)).length, "calculated attendance record"));
       dependencies.push(label(penaltyRules.filter(item => same(item.policy_id, recordId)).length, "incident conversion rule"));
       dependencies.push(label(penaltyTransactions.filter(item => same(item.policy_id, recordId)).length, "attendance penalty transaction"));
+      dependencies.push(label(notifications.filter(item => same(item.payload?.policy_id, recordId)).length, "in-app notification"));
       dependencies.push(label(modules.filter(item => same(moduleRowDetails(item).policy_id, recordId)).length, "workflow record"));
     }
 
@@ -319,9 +327,10 @@
       }).length, "employee"));
       dependencies.push(label(attendancePolicies.filter(item => same(item.entity_id, recordId)).length, "attendance policy", "attendance policies"));
       dependencies.push(label(leavePolicies.filter(item => same(item.organization_id, recordId)).length, "leave policy", "leave policies"));
-      dependencies.push(label(holidays.filter(item => same(item.organization_id, recordId) || same(item.scope_key, recordId)).length, "holiday-calendar record"));
+      dependencies.push(label(holidays.filter(item => same(item.organization_id, recordId) || holidayScopeKeys(item).some(key => same(key, recordId))).length, "holiday-calendar record"));
       dependencies.push(label(ledger.filter(item => same(item.organization_id, recordId)).length, "leave-ledger entry", "leave-ledger entries"));
       dependencies.push(label(shiftPolicies.filter(item => same(item.entity_id, recordId) || same(item.organization_id, recordId)).length, "shift policy", "shift policies"));
+      dependencies.push(label(notifications.filter(item => same(item.entity_id, recordId)).length, "in-app notification"));
       dependencies.push(label(operatingContexts.filter(item => same(item.primary_entity_id, recordId) || same(item.active_entity_id, recordId)).length, "operating context"));
     }
 
@@ -332,9 +341,10 @@
       }).length, "employee"));
       dependencies.push(label(attendance.filter(item => same(item.location_id, recordId)).length, "attendance record"));
       dependencies.push(label(rosters.filter(item => same(item.location_id, recordId)).length, "roster"));
-      dependencies.push(label(holidays.filter(item => text(item.scope_type).toUpperCase() === "LOCATION" && same(item.scope_key, recordId)).length, "holiday-calendar record"));
+      dependencies.push(label(holidays.filter(item => text(item.scope_type).toUpperCase() === "LOCATION" && holidayScopeKeys(item).some(key => same(key, recordId))).length, "holiday-calendar record"));
       dependencies.push(label(shiftPolicies.filter(item => same(item.location_id, recordId)).length, "shift policy", "shift policies"));
       dependencies.push(label(ledger.filter(item => same(item.location_id, recordId)).length, "leave-ledger entry", "leave-ledger entries"));
+      dependencies.push(label(notifications.filter(item => same(item.location_id, recordId)).length, "in-app notification"));
     }
 
     if (recordType === "department" || recordType === "designation") {

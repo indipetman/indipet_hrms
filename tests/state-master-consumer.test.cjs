@@ -21,9 +21,9 @@ test("HRMS rejects entity and location states missing from ERP Core", () => {
 });
 
 test("Employee Address uses the shared ERP Core State Master", () => {
-  assert.match(source, /<select data-employee-field="address_state"><option value="">Select state<\/option><\/select>/);
+  assert.match(source, /<select data-employee-field="address_state" data-hrms-pincode-state><option value="">Select state<\/option><\/select>/);
   assert.doesNotMatch(source, /<input data-employee-field="address_state"/);
   assert.match(source, /select\[data-employee-field="address_state"\]/);
   assert.match(source, /Select an active state from ERP Core State Master\./);
-  assert.match(source, /if \(field\.dataset\.employeeField === "address_state"\) populateCityMasterSelect\("employee"\)/);
+  assert.match(source, /if \(field\.dataset\.employeeField === "address_state"\) \{[\s\S]*populateDistrictMasterSelect\("employee"\);[\s\S]*populateCityMasterSelect\("employee"\);/);
 });

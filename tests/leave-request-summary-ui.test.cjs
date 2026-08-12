@@ -14,9 +14,9 @@ test("Leave Requests exposes the agreed five-card operational summary", () => {
   assert.match(html, /"Requests blocked by staffing or daily leave limits"/);
 });
 
-test("Leave Request summary values are recalculated from role-scoped records", () => {
+test("Leave Request summary values are recalculated from role-and-filter-scoped records", () => {
   assert.match(html, /function updateLeaveRequestValues\(rows = hrmsScopedModuleRows\("leave-requests"\)\)/);
-  assert.match(html, /if \(isLeaveRequest\) updateLeaveRequestValues\(scopedRows\)/);
+  assert.match(html, /if \(isLeaveRequest\) updateLeaveRequestValues\(rowsWithoutStatus\)/);
   assert.match(html, /const pending = records\.filter\(leaveRequestIsPending\)/);
   assert.match(html, /leaveRequestDecisionDate\(record\) === today/);
   assert.match(html, /leaveRequestCoversDate\(record, today\)/);

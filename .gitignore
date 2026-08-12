@@ -6,5 +6,8 @@ node_modules/
 mock-db/backups/
 mock-db/*.pre-*.xlsx
 mock-db/uploads/
+backups/
+outputs/
+.tmp*/
 *.xlsx
 !mock-db/hrms_mock_database.xlsx

@@ -79,12 +79,24 @@ test("published roster assignment resolves the applicable shift before employee 
   assert.equal(event.policy_id, "S2");
 });
 
-test("approval fails closed when neither a roster shift nor a default shift can resolve", () => {
+test("approval is allowed before roster generation when no default shift can resolve", () => {
   const data = snapshot([{ employee_id: "E1" }], 1);
   data.employees[0].record.default_shift_id = "";
   const result = resolver.validateApprovedLeaveCaps(data);
+  assert.equal(result.ok, true);
+  assert.equal(result.blockers.length, 0);
+  assert.equal(result.deferred.length, 1);
+  assert.equal(result.deferred[0].status, "Deferred Until Roster");
+  assert.match(result.deferred[0].detail, /deferred until roster planning/i);
+});
+
+test("approval remains blocked when a resolved shift has no active leave-cap policy", () => {
+  const data = snapshot([{ employee_id: "E1" }], 1);
+  data.shift_policies = [];
+  const result = resolver.validateApprovedLeaveCaps(data);
   assert.equal(result.ok, false);
-  assert.equal(result.blockers[0].status, "Pending Review");
+  assert.equal(result.blockers[0].status, "Blocked");
+  assert.match(result.blockers[0].detail, /No active Excel-backed shift policy/);
 });
 
 test("HRMS UI and server share the same leave-cap resolver", () => {
@@ -97,4 +109,3 @@ test("HRMS UI and server share the same leave-cap resolver", () => {
   assert.match(server, /validateApprovedLeaveCaps/);
   assert.match(server, /leave-cap-resolver\.cjs/);
 });
-

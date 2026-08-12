@@ -45,11 +45,13 @@ test("HRMS ownership requires the ERP Primary Entity and stamps every business r
   };
   const scoped = Connectivity.applyTenantOwnership({
     employees: [{ employee_id: "E1", record: { parent_entity_id: "ENT-1" } }],
+    in_app_notifications: [{ notification_id: "N1", source_type: "ATTENDANCE_WARNING", entity_id: "ENT-1" }],
     module_rows: snapshot.module_rows
   }, organization);
   assert.equal(scoped.ok, true);
   assert.equal(scoped.snapshot.employees[0].tenant_id, "TEN-INDIPET");
   assert.equal(scoped.snapshot.employees[0].record.tenant_id, "TEN-INDIPET");
+  assert.equal(scoped.snapshot.in_app_notifications[0].tenant_id, "TEN-INDIPET");
   assert.equal(scoped.snapshot.module_rows[0].tenant_id, "TEN-INDIPET");
 });
 
@@ -65,8 +67,9 @@ test("HRMS API rejects pre-Primary writes, then acknowledges and reloads Tenant 
   const legacyWorkbook = XLSX.readFile(workbookPath);
   for (const sheetName of legacyWorkbook.SheetNames) {
     const rows = XLSX.utils.sheet_to_json(legacyWorkbook.Sheets[sheetName], { header: 1, defval: "" });
-    if (rows[0]?.[0] === "tenant_id") rows.forEach(row => row.shift());
-    legacyWorkbook.Sheets[sheetName] = XLSX.utils.aoa_to_sheet(rows);
+    const headers = rows[0] || [];
+    if (headers[0] === "tenant_id") headers.shift();
+    legacyWorkbook.Sheets[sheetName] = XLSX.utils.aoa_to_sheet([headers]);
   }
   XLSX.writeFile(legacyWorkbook, workbookPath);
   t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
@@ -77,10 +80,19 @@ test("HRMS API rejects pre-Primary writes, then acknowledges and reloads Tenant 
     entities: [],
     locations: []
   };
+  let ownershipRequestCount = 0;
+  let fullOrganizationRequestCount = 0;
   const erpServer = http.createServer((request, response) => {
-    if (request.url === "/api/erp-core/organization") {
+    if (request.url === "/api/erp-core/ownership") {
+      ownershipRequestCount += 1;
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify(organization));
+      return;
+    }
+    if (request.url === "/api/erp-core/organization") {
+      fullOrganizationRequestCount += 1;
+      response.writeHead(500, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: "The full directory must not be loaded for ownership validation." }));
       return;
     }
     response.writeHead(404).end();
@@ -133,6 +145,8 @@ test("HRMS API rejects pre-Primary writes, then acknowledges and reloads Tenant 
   assert.equal(saveResponse.status, 200);
   assert.equal(acknowledgement.ok, true);
   assert.equal(acknowledgement.count, 1);
+  assert.ok(ownershipRequestCount >= 2);
+  assert.equal(fullOrganizationRequestCount, 0);
 
   const reloaded = await fetch(`${origin}/api/mock-db/module_rows`).then(response => response.json());
   assert.equal(reloaded[0].tenant_id, "TEN-INDIPET");

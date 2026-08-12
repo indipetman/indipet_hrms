@@ -111,6 +111,26 @@ test("employee section schema associates roster preferences with Workplace Setup
   assert.match(html, /return \(section\.requiredFields \|\| section\.fields\)\.every/);
 });
 
+test("Review and Activate shows the entered values instead of readiness-only cards", () => {
+  assert.match(html, /function employeeReviewSectionDetails\(section, record\)/);
+  assert.match(html, /sectionElement\?\.querySelectorAll\("\[data-employee-field\]"\)/);
+  assert.match(html, /employee-review-detail-label/);
+  assert.match(html, /employee-review-detail-value/);
+  assert.match(html, /employeeReviewSectionExtras\(section\.section\)/);
+  assert.match(html, /label: "Family Members"/);
+  assert.match(html, /label: "Experience"/);
+  assert.match(html, /label: "Skills"/);
+  assert.doesNotMatch(html, /<span>\$\{item\.complete \? "Ready" : "Needs attention before activation"\}<\/span>/);
+});
+
+test("Review and Activate masks employee secrets and statutory identifiers", () => {
+  assert.match(html, /if \(fieldName === "login_password"\) return "Password set";/);
+  for (const field of ["aadhaar_number", "pan_number", "account_number", "uan_number", "pf_member_id", "esi_number"]) {
+    assert.match(html, new RegExp(`employeeReviewSensitiveFields = new Set\\(\\[[\\s\\S]*?"${field}"`));
+  }
+  assert.match(html, /employeeReviewMaskedValue\(value\)/);
+});
+
 test("Document Center provides manual verification, highest qualification and evidence uploads", () => {
   const documents = employeeSection(4);
   for (const field of ["aadhaar_number", "pan_number", "qualification_level"]) {

@@ -27,6 +27,15 @@
     ) || null;
   }
 
+  function currentFinancialYear(organization = {}, referenceDate = "") {
+    const date = text(referenceDate).slice(0, 10);
+    return array(organization.financial_years).find(record => {
+      const isCurrent = ["yes", "true", "1"].includes(text(record?.is_current).toLowerCase());
+      const isOpen = text(record?.status).toLowerCase() === "open";
+      return isCurrent && isOpen && (!date || (text(record.start_date) <= date && date <= text(record.end_date)));
+    }) || null;
+  }
+
   function stampTenantOwnership(snapshot = {}, tenantId = "") {
     const expectedTenantId = text(tenantId);
     const scoped = { ...snapshot };
@@ -141,6 +150,10 @@
       add("attendance_penalty_transactions", record.transaction_id, "entity_id", "entity", record.entity_id);
       add("attendance_penalty_transactions", record.transaction_id, "location_id", "location", record.location_id, record.entity_id);
     });
+    array(snapshot.in_app_notifications).forEach(record => {
+      add("in_app_notifications", record.notification_id, "entity_id", "entity", record.entity_id);
+      add("in_app_notifications", record.notification_id, "location_id", "location", record.location_id, record.entity_id);
+    });
 
     array(snapshot.leave_policies).forEach(record =>
       add("leave_policies", record.policy_id, "organization_id", "entity", record.organization_id)
@@ -155,11 +168,13 @@
 
     array(snapshot.holiday_calendar).forEach(record => {
       add("holiday_calendar", record.holiday_id, "organization_id", "entity", record.organization_id);
+      const scopeKeys = array(record.scope_keys).map(text).filter(Boolean);
+      if (!scopeKeys.length && text(record.scope_key)) scopeKeys.push(text(record.scope_key));
       if (text(record.scope_type).toUpperCase() === "LOCATION") {
-        add("holiday_calendar", record.holiday_id, "scope_key", "location", record.scope_key, record.organization_id);
+        scopeKeys.forEach(scopeKey => add("holiday_calendar", record.holiday_id, "scope_keys", "location", scopeKey, record.organization_id));
       }
       if (text(record.scope_type).toUpperCase() === "ENTITY") {
-        add("holiday_calendar", record.holiday_id, "scope_key", "entity", record.scope_key);
+        scopeKeys.forEach(scopeKey => add("holiday_calendar", record.holiday_id, "scope_keys", "entity", scopeKey));
       }
     });
 
@@ -264,6 +279,7 @@
     activeTenant,
     applyTenantOwnership,
     businessRecordCount,
+    currentFinancialYear,
     needsOrganizationSnapshot,
     organizationReferences,
     primaryEntity,

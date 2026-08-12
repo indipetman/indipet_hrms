@@ -38,11 +38,29 @@ test("Attendance Reports keeps primary filters in one stretched row and reveals 
   assert.match(html, /attendanceReportSearch"\)\.addEventListener\("input"/);
 });
 
-test("Attendance Reports uses scoped persisted attendance and excludes projections", () => {
+test("Attendance Reports combines scoped persisted attendance with read-only daily projections", () => {
   assert.match(html, /new Set\(hrmsScopedModuleRows\("attendance-list"\)\)/);
   assert.match(html, /if \(source\.projection_only === true\) return null/);
+  assert.match(html, /function attendanceReportProjectionEntry/);
+  assert.match(html, /AttendanceReportDate\.datesInRange\(filters\.start, filters\.end\)/);
+  assert.match(html, /hrmsScopedEmployeeRows\(\)[\s\S]*employeeActiveOnAttendanceDate\(row, workDate\)/);
+  assert.match(html, /attendanceProjectionEntry\(employeeRow, workDate\)/);
+  assert.match(html, /return \[\.\.\.persistedEntries, \.\.\.projectedEntries\]/);
+  assert.match(html, /projectionOnly: true/);
   assert.match(html, /registeredEntityRecordsForOperations\(\)/);
   assert.match(html, /registeredSubLocationsForOperations\(\)/);
+});
+
+test("Attendance Reports classifies weekly offs and closed holidays without requiring punches", () => {
+  const projectionSource = html.slice(
+    html.indexOf("function attendanceProjectionEntry"),
+    html.indexOf("function restoreAttendanceProjection")
+  );
+  assert.match(projectionSource, /closedHolidayForLocation\(workDate, context\.location\)/);
+  assert.match(projectionSource, /\? "Closed Holiday"[\s\S]*\? "Weekly Off"/);
+  assert.match(projectionSource, /attendance_shift: closedHoliday \? "Not applicable"/);
+  assert.match(projectionSource, /requires_punch: closedHoliday \|\| context\.weeklyOff \? false/);
+  assert.match(html, /"Closed Holiday": "blue"/);
 });
 
 test("Attendance Reports exports every filtered record and only visible columns", () => {

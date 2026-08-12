@@ -22,6 +22,7 @@ test("HRMS persistence excludes ERP Core organization tables", () => {
     "attendance_incident_counters",
     "attendance_penalty_transactions",
     "attendance_penalty_audit",
+    "in_app_notifications",
     "leave_policies",
     "leave_policy_rules",
     "leave_policy_assignments",
@@ -52,6 +53,7 @@ test("HRMS persistence excludes ERP Core organization tables", () => {
     attendance_incident_counters: [{ counter_id: "APC1", rule_id: "APR1" }],
     attendance_penalty_transactions: [{ transaction_id: "APT1", rule_id: "APR1" }],
     attendance_penalty_audit: [{ audit_id: "APA1", rule_id: "APR1" }],
+    in_app_notifications: [{ notification_id: "NOT1", source_type: "ATTENDANCE_WARNING" }],
     leave_policies: [{ policy_id: "LP1", organization_id: "IPL101" }],
     leave_policy_rules: [{ rule_id: "LPR1", policy_id: "LP1" }],
     leave_policy_assignments: [{ assignment_id: "LPA1", policy_id: "LP1" }],
@@ -81,6 +83,7 @@ test("HRMS persistence excludes ERP Core organization tables", () => {
   assert.deepEqual(snapshot.attendance_incident_counters, [{ counter_id: "APC1", rule_id: "APR1" }]);
   assert.deepEqual(snapshot.attendance_penalty_transactions, [{ transaction_id: "APT1", rule_id: "APR1" }]);
   assert.deepEqual(snapshot.attendance_penalty_audit, [{ audit_id: "APA1", rule_id: "APR1" }]);
+  assert.deepEqual(snapshot.in_app_notifications, [{ notification_id: "NOT1", source_type: "ATTENDANCE_WARNING" }]);
   assert.deepEqual(snapshot.leave_policies, [{ policy_id: "LP1", organization_id: "IPL101" }]);
   assert.deepEqual(snapshot.leave_policy_rules, [{ rule_id: "LPR1", policy_id: "LP1" }]);
   assert.deepEqual(snapshot.leave_policy_assignments, [{ assignment_id: "LPA1", policy_id: "LP1" }]);

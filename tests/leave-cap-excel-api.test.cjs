@@ -101,3 +101,48 @@ test("Excel API acknowledges valid half-day capacity, reloads it, and rejects an
   assert.match(rejection.error, /leave limit/i);
   assert.equal(rejection.blockers[0].approved_count, 2);
 });
+
+test("Excel API acknowledges and reloads approved leave before roster generation", async t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "hrms-pre-roster-leave-"));
+  const workbook = path.join(temp, "hrms.xlsx");
+  const port = await freePort();
+  const child = spawn(node, [path.join(root, "server.mjs")], {
+    cwd: root,
+    env: { ...process.env, PORT: String(port), HRMS_DB_PATH: workbook, HRMS_REQUIRE_ERP_CORE: "0" },
+    stdio: "ignore"
+  });
+  t.after(() => {
+    child.kill();
+    fs.rmSync(temp, { recursive: true, force: true });
+  });
+  const baseUrl = `http://127.0.0.1:${port}`;
+  await waitForHealth(baseUrl);
+
+  const base = await (await fetch(`${baseUrl}/api/mock-db`)).json();
+  const snapshot = {
+    ...base,
+    employees: [{
+      employee_id: "E1",
+      employee_name: "Pre-roster Employee",
+      status: "Active",
+      record: { employee_id: "E1", location_id: "L1", default_shift_id: "" }
+    }],
+    rosters: [],
+    shift_policies: [],
+    module_rows: [request("R-PRE-ROSTER", "E1", "FULL_DAY")]
+  };
+  const saved = await fetch(`${baseUrl}/api/mock-db`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "If-Match": base._server_revision },
+    body: JSON.stringify(snapshot)
+  });
+  assert.equal(saved.status, 200);
+  const acknowledgement = await saved.json();
+  assert.equal(acknowledgement.counts.module_rows, 1);
+  assert.equal(acknowledgement.counts.rosters, 0);
+
+  const reloaded = await (await fetch(`${baseUrl}/api/mock-db`)).json();
+  assert.equal(reloaded.module_rows[0].details.decision_status, "Approved");
+  assert.equal(reloaded.employees[0].record.default_shift_id, "");
+  assert.equal(reloaded.rosters.length, 0);
+});

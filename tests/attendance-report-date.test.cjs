@@ -42,6 +42,36 @@ test("attendance report opens with the complete selected calendar month", () => 
     dateFilter.monthRange(new Date(2028, 1, 14)),
     { start: "2028-02-01", end: "2028-02-29" }
   );
+  assert.deepEqual(
+    dateFilter.monthRange(new Date(2026, 5, 14)),
+    { start: "2026-06-01", end: "2026-06-30" }
+  );
+});
+
+test("attendance report expands an inclusive period to every calendar date", () => {
+  assert.deepEqual(
+    dateFilter.datesInRange("2026-06-01", "2026-06-30"),
+    Array.from({ length: 30 }, (_, index) => `2026-06-${String(index + 1).padStart(2, "0")}`)
+  );
+  assert.deepEqual(dateFilter.datesInRange("2028-02-28", "2028-03-01"), [
+    "2028-02-28",
+    "2028-02-29",
+    "2028-03-01"
+  ]);
+  assert.deepEqual(dateFilter.datesInRange("", "2026-06-30"), []);
+});
+
+test("attendance report orders each month from day 1 through its final day", () => {
+  const entries = [
+    { workDate: "2026-06-30", employee: "Tarak", employeeId: "E2" },
+    { workDate: "2026-06-01", employee: "Tarak", employeeId: "E2" },
+    { workDate: "2026-06-01", employee: "Ayan", employeeId: "E1" },
+    { workDate: "2026-06-29", employee: "Arpita", employeeId: "E3" }
+  ];
+  assert.deepEqual(
+    entries.sort(dateFilter.compareEntriesChronologically).map(entry => `${entry.workDate}|${entry.employee}`),
+    ["2026-06-01|Ayan", "2026-06-01|Tarak", "2026-06-29|Arpita", "2026-06-30|Tarak"]
+  );
 });
 
 test("Attendance Reports loads and uses the shared date-range helper", () => {
@@ -50,6 +80,8 @@ test("Attendance Reports loads and uses the shared date-range helper", () => {
   assert.match(html, /AttendanceReportDate\.normalize\(details\.work_date\)/);
   assert.match(html, /AttendanceReportDate\.isWithinRange\(entry\.workDate, filters\.start, filters\.end\)/);
   assert.match(html, /AttendanceReportDate\.monthRange\(referenceDate\)/);
+  assert.match(html, /AttendanceReportDate\.datesInRange\(filters\.start, filters\.end\)/);
+  assert.match(html, /\.sort\(AttendanceReportDate\.compareEntriesChronologically\)/);
   assert.match(html, /attendanceReportPeriodStorageKey = "indipet\.hrms\.attendanceReports\.period"/);
   assert.match(html, /writeAttendanceReportPeriod\(\)/);
   assert.match(html, /syncAttendanceReportDateRange\("start"\)/);

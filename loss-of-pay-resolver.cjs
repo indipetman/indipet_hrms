@@ -8,8 +8,6 @@
   const LEAVE_CODE = "LOP";
   const LEAVE_NAME = "Loss of Pay";
   const ACTIVE_WORKFLOWS = new Set(["PENDING_REVIEW", "APPROVED", "PAYROLL_APPLIED"]);
-  const APPROVED_ATTENDANCE = new Set(["APPROVED", "AUTO_APPROVED", "OVERRIDDEN"]);
-  const ABSENCE_STATUSES = new Set(["ABSENT", "NO SHOW"]);
   const CLOSED_ASSIGNMENTS = /WEEKLY[ -]?OFF|CLOSED HOLIDAY|HOLIDAY CLOSED/i;
 
   const array = value => Array.isArray(value) ? value : [];
@@ -97,60 +95,6 @@
       });
   }
 
-  function attendanceCandidates(snapshot = {}, closedKeys = nonWorkingKeys(snapshot)) {
-    const moduleRows = array(snapshot.module_rows).filter(row => text(row.pageKey || row.page_key) === "attendance-list");
-    const tableRows = array(snapshot.attendance).map(row => ({
-      ...row,
-      row_id: row.id,
-      pageKey: "attendance-list",
-      details: {
-        ...detailsOf(row),
-        record_id: row.id,
-        employee_id: row.employee_id,
-        employee_name: row.name,
-        entity_id: row.entity_id,
-        location_id: row.location_id,
-        location: row.location,
-        work_date: row.work_date,
-        roster_shift: row.shift,
-        final_status: row.status,
-        decision_status: row.status,
-        lifecycle_status: row.status
-      }
-    }));
-    const byId = new Map();
-    [...tableRows, ...moduleRows].forEach(row => {
-      const id = sourceIdOf(row);
-      if (id) byId.set(id, row);
-    });
-    return [...byId.values()].flatMap(row => {
-      const details = detailsOf(row);
-      const employeeId = employeeIdOf(row);
-      const sourceId = sourceIdOf(row);
-      const date = normalizeDate(details.work_date || row.work_date || cellsOf(row)[0]);
-      const status = upper(details.final_status || details.calculated_day_status || details.proposed_status || row.status || cellsOf(row)[9]);
-      const workflow = upper(details.lifecycle_status || details.decision_status || details.review_status || row.status);
-      const rosterShift = text(details.original_roster_shift || details.roster_shift || row.shift || cellsOf(row)[4]);
-      if (!employeeId || !sourceId || !date || !ABSENCE_STATUSES.has(status)) return [];
-      if (!APPROVED_ATTENDANCE.has(workflow) && details.override_active !== true) return [];
-      if (details.leave_assignment_active === true || details.leave_request_id || CLOSED_ASSIGNMENTS.test(rosterShift)) return [];
-      if (closedKeys.has(employeeDateKey(employeeId, date))) return [];
-      return [{
-        employee_id: employeeId,
-        employee_name: employeeNameOf(row),
-        organization_id: text(details.entity_id || row.entity_id),
-        location_id: text(details.location_id || row.location_id),
-        location: text(details.location || row.location),
-        work_date: date,
-        units: 1,
-        workflow_status: "APPROVED",
-        source_type: "ATTENDANCE_ABSENCE",
-        source_id: sourceId,
-        source_priority: 30
-      }];
-    });
-  }
-
   function attendancePenaltyCandidates(snapshot = {}) {
     return array(snapshot.attendance_penalty_transactions).flatMap(transaction => {
       const consequence = upper(transaction.consequence_type);
@@ -181,7 +125,6 @@
     const selected = new Map();
     [
       ...leaveRequestCandidates(snapshot, closedKeys),
-      ...attendanceCandidates(snapshot, closedKeys),
       ...attendancePenaltyCandidates(snapshot)
     ].forEach(candidate => {
       const key = employeeDateKey(candidate.employee_id, candidate.work_date);

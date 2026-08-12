@@ -16,7 +16,7 @@ test("Leave Request export uses current role scope and table filters", () => {
   assert.match(html, /function filteredLeaveRequestRowsForExport\(\)/);
   assert.match(html, /return hrmsScopedModuleRows\("leave-requests"\)\.filter/);
   assert.match(html, /\(!search \|\| rowText\.includes\(search\)\)/);
-  assert.match(html, /\(location === "all" \|\| rowLocation === location\)/);
+  assert.match(html, /moduleRowMatchesLocation\("leave-requests", row, location\)/);
   assert.match(html, /\(status === "all" \|\| rowStatus === status\)/);
   assert.match(html, /const headers = \[\.\.\.\(pageConfig\["leave-requests"\]\?\.columns \|\| \[\]\)\];/);
   assert.match(html, /leaveRequestDaysLabel\(row\)/);

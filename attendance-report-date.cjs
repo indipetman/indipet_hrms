@@ -64,5 +64,29 @@
     };
   }
 
-  return { normalize, normalizeRange, isWithinRange, monthRange };
+  function datesInRange(startValue, endValue) {
+    const { start, end } = normalizeRange(startValue, endValue);
+    if (!start || !end) return [];
+    const dates = [];
+    const cursor = new Date(`${start}T00:00:00Z`);
+    const finalDate = new Date(`${end}T00:00:00Z`);
+    while (cursor <= finalDate) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return dates;
+  }
+
+  function compareEntriesChronologically(left = {}, right = {}) {
+    const leftDate = normalize(left.workDate || left.date);
+    const rightDate = normalize(right.workDate || right.date);
+    if (leftDate && rightDate && leftDate !== rightDate) return leftDate.localeCompare(rightDate);
+    if (leftDate && !rightDate) return -1;
+    if (!leftDate && rightDate) return 1;
+    const employeeOrder = String(left.employee || "").localeCompare(String(right.employee || ""));
+    if (employeeOrder) return employeeOrder;
+    return String(left.employeeId || "").localeCompare(String(right.employeeId || ""));
+  }
+
+  return { normalize, normalizeRange, isWithinRange, monthRange, datesInRange, compareEntriesChronologically };
 });

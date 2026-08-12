@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { deleteRoster, mergeEmployeeBundle, pendingSnapshot, persistEmployeeBundle, persistSnapshot } = require("../roster-persistence.cjs");
+const { deleteRoster, isDefinitiveValidationRejection, mergeEmployeeBundle, pendingSnapshot, persistEmployeeBundle, persistSnapshot } = require("../roster-persistence.cjs");
 
 const snapshot = {
   entities: [{ entity_id: "IPL101" }],
@@ -93,6 +93,33 @@ test("does not use sequential compatibility writes after a current server reject
 
   assert.equal(result, "browser");
   assert.deepEqual(calls.map(call => call.url), ["/api/mock-db"]);
+});
+
+test("reports the exact validation rejection to the caller", async () => {
+  let persistenceResult = null;
+  const request = async () => ({
+    ok: false,
+    status: 409,
+    json: async () => ({
+      error: "Duplicate Leave Type codes are not allowed.",
+      table: "leave_policy_rules",
+      blockers: [{ detail: "CL already exists in Leave Policy 2026." }]
+    })
+  });
+
+  const result = await persistSnapshot({
+    snapshot,
+    baseUrl: "/api/mock-db",
+    tables: ["entities", "rosters"],
+    request,
+    onResult: value => { persistenceResult = value; }
+  });
+
+  assert.equal(result, "browser");
+  assert.equal(persistenceResult.status, 409);
+  assert.equal(persistenceResult.payload.blockers[0].detail, "CL already exists in Leave Policy 2026.");
+  assert.equal(isDefinitiveValidationRejection(persistenceResult), true);
+  assert.equal(isDefinitiveValidationRejection({ status: 409, payload: { error: "Stale snapshot" } }), false);
 });
 
 test("employee save merges only the selected employee into the latest Excel snapshot", async () => {

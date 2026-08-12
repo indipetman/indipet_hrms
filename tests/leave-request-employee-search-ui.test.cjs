@@ -17,13 +17,13 @@ const leaveMarkupSource = html.slice(
 );
 const editSource = html.slice(
   html.indexOf("if (row && isLeaveRequest)"),
-  html.indexOf('if (row && activePage === "department-master")')
+  html.indexOf('if (row && modalPageKey === "department-master")')
 );
 const submitStart = html.indexOf('$("#recordForm").addEventListener("submit"');
-const leaveSubmitStart = html.indexOf('if (activePage === "leave-requests")', submitStart);
+const leaveSubmitStart = html.indexOf('if (submissionPage === "leave-requests")', submitStart);
 const submitSource = html.slice(
   leaveSubmitStart,
-  html.indexOf('if (activePage === "holiday-calendar")', leaveSubmitStart)
+  html.indexOf('if (submissionPage === "holiday-calendar")', leaveSubmitStart)
 );
 
 test("leave request employee selection is a searchable, scrollable combobox", () => {
@@ -77,6 +77,20 @@ test("leave requests cannot exceed the displayed Excel-backed balance", () => {
   assert.match(submitSource, /const selectedBalance = leaveLedgerBalancesForEmployee\(employeeId\)/);
   assert.match(submitSource, /requestedDays > availableDays/);
   assert.match(submitSource, /requested_days: requestedDays/);
+});
+
+test("leave request creation action defaults to Approve and can make one audited decision", () => {
+  assert.match(leaveMarkupSource, /id="recordLeaveAction"[^>]*data-record-field="creation_action"[^>]*required/);
+  assert.doesNotMatch(leaveMarkupSource, /<option value="ACTIVE"[^>]*>Active<\/option>/);
+  assert.match(leaveMarkupSource, /<option value="APPROVE" selected>Approve<\/option>/);
+  assert.match(leaveMarkupSource, /<option value="NOT_APPROVE">Not Approve<\/option>/);
+  assert.match(submitSource, /creationAction = String\(\$\("#recordLeaveAction"\)\.value \|\| "APPROVE"\)/);
+  assert.match(submitSource, /requestStatus = approvedOnSubmit \? "Approved" : rejectedOnSubmit \? "Rejected" : "Pending"/);
+  assert.match(submitSource, /APPROVED_ON_SUBMISSION/);
+  assert.match(submitSource, /NOT_APPROVED_ON_SUBMISSION/);
+  assert.match(submitSource, /HrmsLeaveCapResolver\.evaluateApproval\(hrmsLeaveCapSnapshot\(\), source\)/);
+  assert.match(submitSource, /approved_days: approvedOnSubmit \? requestedDays : 0/);
+  assert.match(submitSource, /await persistHrmsReserve\(\)/);
 });
 
 test("leave request modal is not dismissed by an accidental backdrop click", () => {

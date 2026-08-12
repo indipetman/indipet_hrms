@@ -12,7 +12,7 @@ const modalSource = html.slice(
 );
 const submitSource = html.slice(
   html.indexOf('$("#recordForm").addEventListener'),
-  html.indexOf('if (activePage === "department-master")', html.indexOf('$("#recordForm").addEventListener'))
+  html.indexOf('if (submissionPage === "department-master")', html.indexOf('$("#recordForm").addEventListener'))
 );
 
 test("manual attendance captures evidence and calculates context instead of using generic record fields", () => {
@@ -25,6 +25,8 @@ test("manual attendance captures evidence and calculates context instead of usin
   assert.match(modalSource, /ArrowDown/);
   assert.match(modalSource, /ArrowUp/);
   assert.match(modalSource, /recordAttendanceDate/);
+  assert.match(modalSource, /class="attendance-record-top-row"[\s\S]*recordAttendanceEmployeeSearch[\s\S]*recordAttendanceDate[\s\S]*recordAttendanceAction/);
+  assert.match(html, /\.attendance-record-top-row\s*\{[\s\S]*grid-template-columns:\s*minmax\(260px, 2fr\) minmax\(145px, 0\.8fr\) minmax\(155px, 0\.9fr\)/);
   assert.match(modalSource, /Published Roster Shift/);
   assert.match(modalSource, /recordAttendanceCheckIn/);
   assert.match(modalSource, /recordAttendanceCheckOut/);
@@ -42,7 +44,11 @@ test("manual attendance captures evidence and calculates context instead of usin
   assert.match(modalSource, /recordAttendanceStatus"[^>]*type="hidden"/);
   assert.match(modalSource, /Detected Issue/);
   assert.match(modalSource, /Manual Entry Reason/);
-  assert.match(modalSource, /enters Pending Review until an authorised user approves or rejects it/);
+  assert.match(modalSource, /Action defaults to Approve/);
+  assert.match(modalSource, /id="recordAttendanceAction"[^>]*data-record-field="creation_action"[^>]*required/);
+  assert.doesNotMatch(modalSource, /<option value="ACTIVE"[^>]*>Active<\/option>/);
+  assert.match(modalSource, /<option value="APPROVE" selected>Approve<\/option>/);
+  assert.match(modalSource, /<option value="NOT_APPROVE">Not Approve<\/option>/);
   assert.match(modalSource, /function setAttendanceTimeControl/);
   assert.doesNotMatch(modalSource, /<select id="recordAttendanceStatus"/);
   assert.doesNotMatch(modalSource, /<select id="recordAttendanceIssue"/);
@@ -52,8 +58,13 @@ test("manual attendance validates, audits, persists and prevents silent replacem
   assert.match(submitSource, /Attendance already exists[\s\S]*existing row's Edit action/);
   assert.match(submitSource, /Enter at least one punch/);
   assert.match(submitSource, /capture_method: "MANUAL"/);
-  assert.match(submitSource, /lifecycle_status: "PENDING_REVIEW"/);
-  assert.match(submitSource, /review_status: "PENDING"/);
+  assert.match(submitSource, /creationAction = String\(\$\("#recordAttendanceAction"\)\.value \|\| "APPROVE"\)/);
+  assert.match(submitSource, /lifecycle_status: approvedOnSubmit \? "APPROVED" : rejectedOnSubmit \? "COMPUTED" : "PENDING_REVIEW"/);
+  assert.match(submitSource, /review_status: approvedOnSubmit \? "APPROVED" : rejectedOnSubmit \? "REJECTED" : "PENDING"/);
+  assert.match(submitSource, /final_status: approvedOnSubmit \? status : ""/);
+  assert.match(submitSource, /APPROVED_ON_SUBMISSION/);
+  assert.match(submitSource, /NOT_APPROVED_ON_SUBMISSION/);
+  assert.match(submitSource, /await persistHrmsReserve\(\)/);
   assert.match(submitSource, /const isAttendanceEdit/);
   assert.match(submitSource, /rowIndex !== attendanceTargetIndex/);
   assert.match(submitSource, /EDITED_PENDING_REVIEW/);
@@ -236,6 +247,27 @@ test("selected-date attendance projects every scoped active employee without per
   assert.match(html, /if \(source\.projection_only\) return null/);
   assert.match(html, /isDailyProjection/);
   assert.match(html, /deleteAction\.hidden = isDailyProjection \|\| !canDelete/);
+});
+
+test("closed weekly-off dates project a paid non-working day without punch or review requirements", () => {
+  const contextSource = html.slice(
+    html.indexOf("function attendancePublishedRosterContext"),
+    html.indexOf("function attendanceLocationShiftOptions")
+  );
+  const projectionSource = html.slice(
+    html.indexOf("function attendanceProjectionEntry"),
+    html.indexOf("function restoreAttendanceProjection")
+  );
+  assert.match(contextSource, /WeeklyOffHolidayResolver\?\.resolveWeeklyOffContext/);
+  assert.match(contextSource, /policies: employee\.location\?\.shiftPolicyRecords \|\| \[\]/);
+  assert.match(contextSource, /weeklyOffContext\?\.roster_shift \|\| "Weekly Off"/);
+  assert.match(projectionSource, /context\.weeklyOff[\s\S]*?"Weekly Off"/);
+  assert.match(projectionSource, /attendance_shift: closedHoliday \? "Not applicable" : context\.weeklyOffContext\?\.attendance_shift \|\| ""/);
+  assert.match(projectionSource, /weekly_off_basis: context\.weeklyOffContext\?\.weekly_off_basis \|\| ""/);
+  assert.match(projectionSource, /requires_punch: closedHoliday \|\| context\.weeklyOff \? false/);
+  assert.match(projectionSource, /pay_treatment: "PAID"/);
+  assert.match(projectionSource, /review_status: "NOT_REQUIRED"/);
+  assert.match(html, /details\.attendance_shift \|\| details\.roster_shift/);
 });
 
 test("deleting attendance removes only the event and restores the employee's daily register row", () => {

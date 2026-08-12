@@ -13,6 +13,15 @@ function extractRequiredRule() {
   return Function(`${match[0]}; return rosterRuleIsRequired;`)();
 }
 
+function extractWeekDayValue() {
+  const start = html.indexOf('function weekDayValue(label = "")');
+  const end = html.indexOf("function shiftPolicyRecordFromShift", start);
+  assert.ok(start >= 0 && end > start, "weekDayValue must exist");
+  const source = html.slice(start, end);
+  const normalizeDepartmentLink = value => String(value || "").trim().toLowerCase();
+  return Function("normalizeDepartmentLink", `${source}; return weekDayValue;`)(normalizeDepartmentLink);
+}
+
 test("Shift Policy owns a dedicated Excel-backed HRMS table", () => {
   assert.match(server, /shift_policies:\s*\{/);
   assert.match(server, /key:\s*"policy_id"/);
@@ -71,4 +80,47 @@ test("new Shift Policy forms are Active and leave staffing values blank", () => 
   assert.match(html, /\$\("#shiftDailyLeaveLimit"\)\.value = ""/);
   assert.match(html, /String\(record\.sanctioned_strength \?\? ""\)/);
   assert.match(html, /String\(record\.max_leave_per_day \?\? ""\)/);
+});
+
+test("Shift Policy list normalizes persisted fixed weekly-off values for display", () => {
+  const weekDayValue = extractWeekDayValue();
+  assert.equal(weekDayValue(7), "7");
+  assert.equal(weekDayValue("Sunday"), "7");
+  const displayStart = html.indexOf("function shiftPolicyDisplayRow");
+  const displayEnd = html.indexOf("async function saveShiftPolicyRecord", displayStart);
+  const displaySource = html.slice(displayStart, displayEnd);
+  assert.match(displaySource, /weekDayValue\(record\.weekly_off_day\)/);
+  assert.match(displaySource, /weekDayLabel\(weeklyOffDay\) \|\| "Not configured"/);
+  assert.match(displaySource, /weeklyOff/);
+});
+
+test("Shift Policy list shows its persisted shift-scoped keyholders", () => {
+  const renderStart = html.indexOf("function renderShiftPolicyTab");
+  const renderEnd = html.indexOf("function renderLocationAuditTab", renderStart);
+  const renderSource = html.slice(renderStart, renderEnd);
+  assert.match(renderSource, /<th>Primary Keyholder<\/th><th>Backup Keyholder<\/th><th>Weekly Off<\/th>/);
+  assert.match(renderSource, /shiftPolicyEmployeeLabel\(location, policy\.primary_keyholder_id\)/);
+  assert.match(renderSource, /shiftPolicyEmployeeLabel\(location, policy\.backup_keyholder_id\)/);
+});
+
+test("location management delegates keyholder assignment to Shift Policy", () => {
+  const formStart = html.indexOf('id="locationResponsibility"');
+  const formEnd = html.indexOf('</section>', formStart);
+  const formSource = html.slice(formStart, formEnd);
+  assert.match(formSource, /Responsible Manager/);
+  assert.match(formSource, /Keyholders are assigned independently on each Shift Policy/);
+  assert.doesNotMatch(formSource, /data-location-field="primary_keyholder_id"|data-location-field="backup_keyholder_id"|Area Manager ID/);
+  assert.match(html, /function populateLocationManagerOptions/);
+  assert.match(html, /reportingManagerCandidates\(record\.location_id \|\| record\.id \|\| ""\)/);
+});
+
+test("Shift Policy list rebuilds rows from authoritative records instead of a stale location cache", () => {
+  const rowsStart = html.indexOf("function shiftRowsForLocation");
+  const rowsEnd = html.indexOf("function parseDisplayTimeToValue", rowsStart);
+  const rowsSource = html.slice(rowsStart, rowsEnd);
+  assert.match(rowsSource, /location\?\.shiftPolicyRecords/);
+  assert.match(rowsSource, /map\(record => shiftPolicyDisplayRow\(record\)\)/);
+  assert.match(rowsSource, /legacyRows/);
+  assert.match(rowsSource, /!policyIds\.has/);
+  assert.doesNotMatch(rowsSource, /const rows = \[\.\.\.\(location\.shifts/);
 });

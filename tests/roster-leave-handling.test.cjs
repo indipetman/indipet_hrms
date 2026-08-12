@@ -88,7 +88,9 @@ test("approved leave dates are materialized with their leave type", () => {
     reason: "Casual Leave",
     leave_request_id: "LR-1",
     leave_code: "CL",
-    source: "approved_leave"
+    source: "approved_leave",
+    decision_status: "Approved",
+    active: true
   })));
   assert.equal(context.buildRosterApprovedLeaveDays({ id: "LOC-1" }, [employee], dates, { leaveHandling: "ignore" }).length, 0);
 });
@@ -116,6 +118,83 @@ test("approved leave is resolved dynamically and displayed before a preserved pu
     exportDataset.indexOf("} else if (leave) {") < exportDataset.indexOf("} else if (assignment) {"),
     "exports must use the same leave-before-shift precedence as the board"
   );
+});
+
+test("a rejected request invalidates a materialized roster leave day during regeneration and display", () => {
+  const rows = [["LR-1", "Vikram Mehra", "Casual Leave", "10/08/2026", "Rejected"]];
+  const context = {
+    pageConfig: {
+      "employee-master": { rows: [["EMP-1", "Vikram Mehra"]] },
+      "leave-requests": { rows }
+    },
+    moduleRowSourceRecords: {
+      "leave-requests": [{
+        row_id: "LR-1",
+        details: {
+          request_id: "LR-1",
+          employee_id: "EMP-1",
+          employee_name: "Vikram Mehra",
+          start_date: "2026-08-10",
+          end_date: "2026-08-10",
+          decision_status: "Rejected"
+        }
+      }]
+    },
+    hrmsScopedModuleRows: () => rows,
+    normalizeDepartmentLink: value => String(value || "").trim().toLowerCase(),
+    rosterLeaveDateMatches: () => true,
+    HrmsLeaveCapResolver: { expandDates: () => ["2026-08-10"] }
+  };
+  vm.createContext(context);
+  vm.runInContext([
+    functionSource("rosterApprovedLeaveFor"),
+    functionSource("rosterManualLeaveFor")
+  ].join("\n"), context);
+
+  const record = {
+    leave_handling: "approved",
+    leave_days: [{
+      employee_id: "EMP-1",
+      date: "2026-08-10",
+      leave_request_id: "LR-1",
+      decision_status: "Approved",
+      active: true
+    }]
+  };
+  assert.equal(context.rosterApprovedLeaveFor(
+    { id: "EMP-1", name: "Vikram Mehra" },
+    { iso: "2026-08-10" },
+    { leaveHandling: "approved" }
+  ), null);
+  assert.equal(context.rosterManualLeaveFor(record, "EMP-1", "2026-08-10"), null);
+});
+
+test("roster startup reconciles retained audit links before absence materialization", () => {
+  const reconcile = functionSource("reconcileRosterLeaveDecisionState");
+  assert.match(reconcile, /resolvedStatus === "APPROVED"/);
+  assert.match(reconcile, /active/);
+  const context = {
+    pageConfig: { "leave-requests": { rows: [["LR-1", "Vikram Mehra", "Casual Leave", "10/08/2026", "Rejected"]] } },
+    moduleRowSourceRecords: {
+      "leave-requests": [{ row_id: "LR-1", details: { request_id: "LR-1", decision_status: "Rejected" } }]
+    },
+    rosterRecords: [{
+      roster_id: "RST-1",
+      status: "Published",
+      leave_days: [{ employee_id: "EMP-1", date: "2026-08-10", leave_request_id: "LR-1", decision_status: "Approved", active: true }]
+    }]
+  };
+  vm.createContext(context);
+  vm.runInContext([functionSource("rosterLeaveRequestDecisionStatus"), reconcile].join("\n"), context);
+  assert.equal(context.reconcileRosterLeaveDecisionState(), 1);
+  assert.equal(context.rosterRecords[0].leave_days[0].decision_status, "Rejected");
+  assert.equal(context.rosterRecords[0].leave_days[0].active, false);
+  assert.ok(
+    html.indexOf("const reconciledRosterLeaveDecisionCount = reconcileRosterLeaveDecisionState()")
+      < html.indexOf("const materializedAbsenceCount = materializeClosedShiftAbsences()"),
+    "leave decisions must reconcile before absence candidates are generated"
+  );
+  assert.match(html, /linkedRequestId === requestId[\s\S]*decision_status: nextStatus, active: approved/);
 });
 
 test("the chosen leave handling mode persists in the Excel roster sheet", () => {

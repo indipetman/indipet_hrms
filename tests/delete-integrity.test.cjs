@@ -19,6 +19,7 @@ test("linked HRMS records block parent deletion with useful dependency labels", 
     employee_skills: [{ skill_id: "SK1", employee_id: "E1" }],
     employee_finance_benefits: [{ finance_benefit_id: "FIN1", employee_id: "E1" }],
     attendance: [{ id: "A1", employee_id: "E1" }],
+    in_app_notifications: [{ notification_id: "N1", recipient_employee_id: "E1" }],
     leave_ledger: [{ ledger_id: "L1", employee_id: "E1" }],
     rosters: [{ roster_id: "R1", assignments: [{ employee_id: "E1" }] }],
     module_rows: []
@@ -34,6 +35,7 @@ test("linked HRMS records block parent deletion with useful dependency labels", 
     "1 skill record",
     "1 finance/statutory record",
     "1 attendance record",
+    "1 in-app notification",
     "1 leave-ledger entry",
     "1 roster"
   ]);
@@ -161,6 +163,26 @@ test("holiday deletion is blocked while a roster or CO credit references it", ()
     recordId: "H1",
     record: snapshot.holiday_calendar[0]
   }), ["1 compensatory-off ledger entry", "1 roster"]);
+});
+
+test("entity and location deletion follow every holiday multi-scope key", () => {
+  const snapshot = {
+    holiday_calendar: [{
+      holiday_id: "H-MULTI",
+      organization_id: "ENTITY-1",
+      scope_type: "LOCATION",
+      scope_key: "LOC-1",
+      scope_keys: ["LOC-1", "LOC-2"]
+    }]
+  };
+  assert.deepEqual(DeleteIntegrity.collectDependencies(snapshot, {
+    recordType: "location",
+    recordId: "LOC-2"
+  }), ["1 holiday-calendar record"]);
+  assert.deepEqual(DeleteIntegrity.collectDependencies(snapshot, {
+    recordType: "entity",
+    recordId: "ENTITY-1"
+  }), ["1 holiday-calendar record"]);
 });
 
 test("roster deletion follows attendance links stored in workflow details", () => {

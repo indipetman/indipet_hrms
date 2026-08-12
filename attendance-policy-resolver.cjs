@@ -9,6 +9,7 @@
     DESIGNATION: 40,
     DEPARTMENT: 30,
     LOCATION: 20,
+    GENDER: 15,
     ENTITY: 10
   });
   const fullCoverageTargets = new Set(["FULL_COVERAGE", "ALL_AUTHORIZED"]);
@@ -26,13 +27,27 @@
       : { entityId: stored.slice(0, separatorIndex), target: stored.slice(separatorIndex + 2) };
   }
 
+  function assignmentOwnershipMatches(assignment = {}, employee = {}) {
+    const assignmentTenantId = text(assignment.tenant_id || assignment.tenantId);
+    const employeeTenantId = text(employee.tenantId || employee.tenant_id);
+    if (assignmentTenantId && assignmentTenantId !== employeeTenantId) return false;
+
+    const assignmentEntityId = text(assignment.entity_id || assignment.entityId);
+    const employeeEntityId = text(employee.entityId || employee.entity_id);
+    if (assignmentEntityId && assignmentEntityId !== employeeEntityId) return false;
+
+    const assignmentOrganizationId = text(assignment.organization_id || assignment.organizationId);
+    const employeeOrganizationId = text(employee.organizationId || employee.organization_id || employeeEntityId);
+    if (assignmentOrganizationId && assignmentOrganizationId !== employeeOrganizationId) return false;
+    return true;
+  }
+
   function assignmentMatches(assignment = {}, employee = {}) {
+    if (!assignmentOwnershipMatches(assignment, employee)) return false;
     const type = text(assignment.target_type).toUpperCase();
     const storedTarget = text(assignment.target_key);
     if (type === "ENTITY" && fullCoverageTargets.has(storedTarget.toUpperCase())) {
-      const assignmentOrganizationId = text(assignment.organization_id || assignment.tenant_id || assignment.entity_id);
-      const employeeOrganizationId = text(employee.organizationId || employee.tenantId);
-      return !assignmentOrganizationId || !employeeOrganizationId || assignmentOrganizationId === employeeOrganizationId;
+      return true;
     }
     const { entityId, target } = targetParts(storedTarget);
     const employeeEntityId = text(employee.entityId);
@@ -43,6 +58,7 @@
       DEPARTMENT: employee.departmentValues,
       DESIGNATION: employee.designationValues,
       SHIFT: employee.shiftValues,
+      GENDER: employee.genderValues,
       EMPLOYEE: [employee.employeeId]
     };
     return tokens(candidateValues[type]).includes(target);
@@ -105,8 +121,8 @@
     return Math.max(0, end - start - breakMinutes);
   }
 
-  function resolvePolicy({ policies = [], assignments = [], employee = {} } = {}) {
-    const candidates = (Array.isArray(policies) ? policies : []).flatMap(policy => {
+  function matchingPolicies({ policies = [], assignments = [], employee = {} } = {}) {
+    return (Array.isArray(policies) ? policies : []).flatMap(policy => {
       if (text(policy?.status).toLowerCase() !== "active") return [];
       const policyId = text(policy?.policy_id);
       const policyAssignments = (Array.isArray(assignments) ? assignments : [])
@@ -126,6 +142,30 @@
       || right.updatedAt - left.updatedAt
       || text(left.policy.policy_code || left.policy.policy_id).localeCompare(text(right.policy.policy_code || right.policy.policy_id))
     );
+  }
+
+  function resolveRuleSet({ policies = [], assignments = [], rules = [], employee = {} } = {}) {
+    const rulesByPolicy = new Map();
+    (Array.isArray(rules) ? rules : []).forEach(rule => {
+      if (text(rule?.status || "Active").toLowerCase() === "inactive") return;
+      const policyId = text(rule?.policy_id);
+      const leaveCode = text(rule?.leave_code).toUpperCase();
+      if (!policyId || !leaveCode) return;
+      if (!rulesByPolicy.has(policyId)) rulesByPolicy.set(policyId, []);
+      rulesByPolicy.get(policyId).push({ ...rule, leave_code: leaveCode });
+    });
+    const resolvedByCode = new Map();
+    matchingPolicies({ policies, assignments, employee }).forEach(match => {
+      (rulesByPolicy.get(text(match.policy?.policy_id)) || []).forEach(rule => {
+        if (resolvedByCode.has(rule.leave_code)) return;
+        resolvedByCode.set(rule.leave_code, { ...match, rule });
+      });
+    });
+    return [...resolvedByCode.values()];
+  }
+
+  function resolvePolicy({ policies = [], assignments = [], employee = {} } = {}) {
+    const candidates = matchingPolicies({ policies, assignments, employee });
     const selected = candidates[0] || null;
     const rules = selected?.policy?.rules && typeof selected.policy.rules === "object" ? selected.policy.rules : {};
     const minimumHalfDayMinutes = safeMinutes(
@@ -300,12 +340,33 @@
     };
   }
 
+  function reconcileApprovedFinalStatus({ reviewStatus = "", finalStatus = "", assessment = {} } = {}) {
+    const currentStatus = text(finalStatus);
+    const calculatedStatus = text(assessment.dayStatus || assessment.status);
+    const configurationPlaceholders = new Set(["PENDING CONFIGURATION", "UNRESOLVED"]);
+    const canReconcile = text(reviewStatus).toUpperCase() === "APPROVED"
+      && configurationPlaceholders.has(currentStatus.toUpperCase())
+      && calculatedStatus
+      && !configurationPlaceholders.has(calculatedStatus.toUpperCase())
+      && assessment.requiresReview !== true
+      && assessment.autoApprovalEligible === true;
+    return {
+      changed: canReconcile,
+      previousStatus: currentStatus,
+      finalStatus: canReconcile ? calculatedStatus : currentStatus
+    };
+  }
+
   return {
     assignmentMatches,
+    assignmentOwnershipMatches,
     assignmentNetWorkMinutes,
     assignmentSpecificity,
     evaluatePunches,
+    matchingPolicies,
+    reconcileApprovedFinalStatus,
     resolvePolicy,
+    resolveRuleSet,
     statusForIssue,
     timeToMinutes
   };

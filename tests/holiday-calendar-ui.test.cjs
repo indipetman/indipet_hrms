@@ -12,7 +12,7 @@ test("Holiday Calendar has a dedicated operational page", () => {
   assert.match(html, /title: "Holiday Calendar"/);
   assert.match(html, /action: "Add Holiday"/);
   assert.match(html, /labels: \["Active Holidays", "Store Closures", "CO Eligible"\]/);
-  assert.match(html, /columns: \["Date", "Holiday", "Type", "Scope", "Store Status", "CO Eligibility", "Status"\]/);
+  assert.match(html, /columns: \["Date", "Holiday", "Type", "Scope", "Store Status", "Holiday Work CO", "Status"\]/);
   assert.match(html, /function syncHolidayCalendarPage/);
   assert.match(html, /function updateHolidayCalendarValues/);
   assert.match(html, /isLeavePolicy \|\| isLeaveLedger \|\| isHolidayCalendar/);
@@ -26,7 +26,7 @@ test("view-only Holiday Calendar access keeps a functional row action", () => {
   assert.match(html, /recordSubmitButton"\)\.hidden = isView/);
 });
 
-test("Holiday form captures date, treatment and a searchable scope", () => {
+test("Holiday form captures date, treatment and a searchable multi-scope", () => {
   assert.match(html, /function renderHolidayCalendarModalFields/);
   assert.match(html, /id="recordHolidayName"[^>]+required/);
   assert.match(html, /id="recordHolidayDate"[^>]+type="date"[^>]+required/);
@@ -36,6 +36,11 @@ test("Holiday form captures date, treatment and a searchable scope", () => {
   assert.match(html, /option value="STATE">State/);
   assert.match(html, /option value="LOCATION">Location/);
   assert.match(html, /recordHolidayScopeSearch[^>]+role="combobox"/);
+  assert.match(html, /recordHolidayScopeResults" role="listbox" aria-multiselectable="true"/);
+  assert.match(html, /id="recordHolidayScopeSelections"/);
+  assert.match(html, /function setHolidayCalendarScopeSelections/);
+  assert.match(html, /holidayCalendarScopeSelections = \[\.\.\.holidayCalendarScopeSelections, option\]/);
+  assert.match(html, /data-holiday-scope-remove/);
   assert.match(html, /function configureHolidayCalendarScopeCombobox/);
   assert.match(html, /id="recordHolidayStoreClosed"/);
   assert.match(html, /id="recordHolidayCoEligible"/);
@@ -53,19 +58,34 @@ test("Holiday rows resolve date, labels, scope and operational flags", () => {
   assert.match(html, /scopeType === "ENTITY"/);
   assert.match(html, /scopeType === "STATE"/);
   assert.match(html, /scopeType === "LOCATION"/);
+  assert.match(html, /function holidayCalendarScopeKeys/);
+  assert.match(html, /holidayCalendarScopeKeys\(holiday\)\.some/);
+  assert.match(html, /holidayCalendarScopeSummary\(holiday\)/);
 });
 
 test("Holiday Calendar persists and supports edit, row delete and bulk delete", () => {
   assert.match(server, /holiday_calendar:\s*\{/);
   assert.match(server, /"store_closed", "co_eligible"/);
+  assert.match(server, /"scope_keys", "scope_labels"/);
+  assert.match(server, /pre-holiday-multi-scope/);
   assert.match(boundary, /"holiday_calendar"/);
-  assert.match(html, /holiday_calendar: holidayCalendarRecords\.map/);
+  assert.match(html, /holiday_calendar: holidayCalendarRecords\.map\(holiday => \(\{/);
+  assert.match(html, /scope_keys: holidayCalendarScopeKeys\(holiday\)/);
   assert.match(html, /if \(activePage === "holiday-calendar"\)/);
   assert.match(html, /holidayCalendarRecords\.push\(holidayRecord\)/);
+  assert.match(html, /scope_keys: scopeKeys/);
+  assert.match(html, /scope_labels: scopeLabels/);
+  assert.match(html, /Holiday was not saved\. The Excel database did not acknowledge it/);
   assert.match(html, /if \(actionPage === "holiday-calendar"\)/);
   assert.match(html, /holidayCalendarRecords\.splice/);
   assert.match(html, /\["employee-master", "department-master", "designation-master", "leave-requests", "holiday-calendar", "attendance-list"\]\.includes\(activePage\)/);
-  assert.match(html, /syncHolidayCalendarPage\(\);\s*reconcileRostersWithHolidayCalendar\(\);\s*const persistenceTarget = await persistHrmsReserve/s);
+  assert.match(html, /syncHolidayCalendarPage\(\);\s*reconcileRostersWithHolidayCalendar\(\);\s*reconcileLeaveLedgerEntries\(\);\s*syncLeaveLedgerPage\(\);\s*const persistenceTarget = await persistHrmsReserve/s);
+});
+
+test("Holiday duplicate checks reject overlapping selected scopes", () => {
+  assert.match(html, /function holidayCalendarScopesOverlap/);
+  assert.match(html, /if \(leftType === "FULL_COVERAGE" \|\| rightType === "FULL_COVERAGE"\) return true/);
+  assert.match(html, /holidayCalendarScopesOverlap\(holiday, pendingScope\)/);
 });
 
 test("active closed holidays are resolved by date and organizational scope", () => {
@@ -100,14 +120,24 @@ test("Holiday Calendar Export button offers filtered Excel and PDF downloads", (
 });
 
 test("a published weekly off on an active declared holiday creates an automatic CO credit", () => {
+  assert.match(html, /src="weekly-off-holiday-resolver\.cjs"/);
+  assert.match(server, /url\.pathname === "\/weekly-off-holiday-resolver\.cjs"/);
   assert.match(html, /function weeklyOffHolidayCompOffCandidates/);
-  assert.match(html, /String\(record\.status \|\| ""\)\.toLowerCase\(\) === "published"/);
-  assert.match(html, /\(record\.weekly_offs \|\| \[\]\)\.forEach/);
-  assert.match(html, /holidayCalendarRecordForDate\(date, location\)/);
+  assert.match(html, /WeeklyOffHolidayResolver\.resolveCandidates/);
+  assert.match(html, /rosters: rosterRecords/);
+  assert.match(html, /holidays: holidayCalendarRecords/);
   assert.match(html, /function reconcileWeeklyOffHolidayCompOffCredits/);
   assert.match(html, /LeaveLedgerCoResolver\.reconcileEntries/);
   assert.doesNotMatch(html, /holidayCalendarRecordForDate\(assignment\.date, location, \{ coEligibleOnly: true \}\)/);
   assert.match(server, /leave-ledger-co-resolver\.cjs/);
+});
+
+test("holiday changes and roster publication reconcile the linked CO ledger before Excel save", () => {
+  assert.match(html, /syncHolidayCalendarPage\(\);\s*reconcileRostersWithHolidayCalendar\(\);\s*reconcileLeaveLedgerEntries\(\);\s*syncLeaveLedgerPage\(\);\s*const persistenceTarget = await persistHrmsReserve\(\);/s);
+  assert.match(html, /const publishSnapshot = JSON\.parse\(JSON\.stringify\(hrmsReserveSnapshot\(\)\)\)/);
+  assert.match(html, /record\.status = "Published";[\s\S]*?reconcileLeaveLedgerEntries\(\);\s*syncLeaveLedgerPage\(\);\s*const persistenceTarget = await persistHrmsReserve\(\);/);
+  assert.match(html, /Roster was not published[\s\S]*?previous roster and CO ledger were restored/);
+  assert.match(html, /A holiday on an organizational or employee weekly off always credits CO automatically/);
 });
 
 test("approved attendance on a CO-eligible holiday creates an automatic CO credit", () => {

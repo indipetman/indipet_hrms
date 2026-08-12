@@ -33,20 +33,29 @@ async function waitForHealth(origin) {
 test("HRMS Excel API validates ERP-owned keys and fails closed when ERP Core is unavailable", async t => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "indipet-hrms-erp-connectivity-"));
   const workbook = path.join(tempDir, "hrms_mock_database.xlsx");
-  fs.copyFileSync(path.join(root, "mock-db", "hrms_mock_database.xlsx"), workbook);
   t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
   const erpPort = await reservePort();
   const erpOrganization = {
     tenants: [{ tenant_id: "TEN-INDIPET", status: "Active" }],
     entities: [{ tenant_id: "TEN-INDIPET", entity_id: "ENT-1", entity_role: "Primary", status: "Active" }],
-    locations: [{ tenant_id: "TEN-INDIPET", id: "LOC-1", parentCode: "ENT-1", status: "Active" }]
+    locations: [{ tenant_id: "TEN-INDIPET", id: "LOC-1", parentCode: "ENT-1", status: "Active" }],
+    financial_years: [{ financial_year_id: "FY-2026-27", start_date: "2026-04-01", end_date: "2027-03-31", status: "Open", is_current: "Yes" }]
   };
   let blockedMasterId = "DEP-1";
+  let ownershipRequestCount = 0;
+  let fullOrganizationRequestCount = 0;
   const erpServer = http.createServer((request, response) => {
-    if (request.url === "/api/erp-core/organization") {
+    if (request.url === "/api/erp-core/ownership") {
+      ownershipRequestCount += 1;
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify(erpOrganization));
+      return;
+    }
+    if (request.url === "/api/erp-core/organization") {
+      fullOrganizationRequestCount += 1;
+      response.writeHead(500, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: "The full directory must not be loaded for ownership validation." }));
       return;
     }
     if (request.url?.startsWith("/api/delete-dependencies")) {
@@ -98,6 +107,31 @@ test("HRMS Excel API validates ERP-owned keys and fails closed when ERP Core is 
   const validAck = await validResponse.json();
   assert.equal(validAck.ok, true);
   assert.equal(validAck.count, 1);
+  assert.ok(ownershipRequestCount >= 1);
+  assert.equal(fullOrganizationRequestCount, 0);
+
+  const invalidYearAttendance = await fetch(`${origin}/api/mock-db/attendance`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([{
+      id: "ATT-1", financial_year_id: "FY-2025-26", employee_id: "E1", entity_id: "ENT-1",
+      location_id: "LOC-1", work_date: "2026-06-01", status: "Present"
+    }])
+  });
+  assert.equal(invalidYearAttendance.status, 409);
+  assert.equal((await invalidYearAttendance.json()).code, "FINANCIAL_YEAR_SCOPE_REJECTED");
+
+  const stampedAttendance = await fetch(`${origin}/api/mock-db/attendance`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([{
+      id: "ATT-1", employee_id: "E1", entity_id: "ENT-1", location_id: "LOC-1",
+      work_date: "2026-06-01", status: "Present"
+    }])
+  });
+  assert.equal(stampedAttendance.status, 200, await stampedAttendance.text());
+  const reloadedAttendance = await fetch(`${origin}/api/mock-db/attendance`).then(response => response.json());
+  assert.equal(reloadedAttendance[0].financial_year_id, "FY-2026-27");
 
   const invalidResponse = await fetch(`${origin}/api/mock-db/employees`, {
     method: "PUT",

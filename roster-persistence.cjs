@@ -35,16 +35,37 @@
     );
   };
 
+  const isDefinitiveValidationRejection = result => {
+    const status = Number(result?.status || 0);
+    return status >= 400 && status < 500
+      && Boolean(String(result?.payload?.table || "").trim())
+      && Array.isArray(result?.payload?.blockers)
+      && result.payload.blockers.length > 0;
+  };
+
   const persistSnapshot = async ({
     snapshot,
     baseUrl,
     tables = [],
     expectedRevision = "",
     onRevision = null,
+    onResult = null,
     request = globalThis.fetch
   }) => {
-    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return "browser";
-    if (typeof request !== "function" || !baseUrl) return "browser";
+    const finish = (target, result = null) => {
+      if (typeof onResult === "function") onResult({
+        target,
+        status: Number(result?.status || 0),
+        payload: result?.payload || null
+      });
+      return target;
+    };
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+      return finish("browser", { status: 0, payload: { error: "Expected an HRMS snapshot object." } });
+    }
+    if (typeof request !== "function" || !baseUrl) {
+      return finish("browser", { status: 0, payload: { error: "The HRMS Excel API is unavailable." } });
+    }
 
     let atomicResult = null;
     try {
@@ -52,9 +73,11 @@
       const result = atomicResult;
       if (atomicWriteAcknowledgesTables({ result, snapshot, tables })) {
         if (typeof onRevision === "function" && result.payload?.revision) onRevision(String(result.payload.revision));
-        return "excel";
+        return finish("excel", result);
       }
-    } catch {}
+    } catch (error) {
+      atomicResult = { ok: false, status: 0, payload: { error: String(error?.message || "The HRMS Excel API is unavailable.") } };
+    }
 
     // Compatibility path for an already-running older mock server that supports
     // per-table writes but not the newer atomic database-snapshot endpoint.
@@ -64,17 +87,17 @@
     const compatibilityFallbackAllowed = !atomicResult
       || [0, 404, 405, 501].includes(atomicResult.status)
       || (atomicResult.ok && atomicResult.status >= 200 && atomicResult.status < 300);
-    if (!compatibilityFallbackAllowed) return "browser";
+    if (!compatibilityFallbackAllowed) return finish("browser", atomicResult);
     try {
       const tableNames = tables.filter(table => Array.isArray(snapshot[table]));
-      if (!tableNames.length) return "browser";
+      if (!tableNames.length) return finish("browser", atomicResult);
       for (const table of tableNames) {
         const result = await putJson(request, `${baseUrl}/${encodeURIComponent(table)}`, snapshot[table]);
-        if (!result.ok) return "browser";
+        if (!result.ok) return finish("browser", result);
       }
-      return "excel";
-    } catch {
-      return "browser";
+      return finish("excel", { status: 200, payload: { ok: true, compatibility: true } });
+    } catch (error) {
+      return finish("browser", { status: 0, payload: { error: String(error?.message || "The HRMS Excel API is unavailable.") } });
     }
   };
 
@@ -179,6 +202,7 @@
     atomicWriteAcknowledgesTables,
     deleteRoster,
     employeeBundleTables,
+    isDefinitiveValidationRejection,
     mergeEmployeeBundle,
     pendingSnapshot,
     persistEmployeeBundle,

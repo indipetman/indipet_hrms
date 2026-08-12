@@ -59,7 +59,9 @@
             ? `Approved full attendance on scheduled weekly off ${candidate.date || "the roster date"} earned one Compensatory Off day.`
             : isHolidayWork
             ? `${candidate.holiday_name || "Declared holiday"} attendance was approved after ${Number(candidate.worked_minutes) || 0} worked minutes on ${candidate.date || "the holiday"}.`
-            : `${candidate.holiday_name || "Declared holiday"} matched the scheduled weekly off on ${candidate.date || "the roster date"}.`,
+            : candidate.weekly_off_basis === "ORGANIZATION_CLOSED_DAY"
+              ? `${candidate.holiday_name || "Declared holiday"} fell on the organization weekly closed day on ${candidate.date || "the roster date"}; one Compensatory Off day was credited regardless of holiday Store Status or Holiday Work CO setting.`
+              : `${candidate.holiday_name || "Declared holiday"} matched the employee's scheduled weekly off on ${candidate.date || "the roster date"}; one Compensatory Off day was credited regardless of holiday Store Status or Holiday Work CO setting.`,
           at: now,
           source_key: `${candidate.employee_id || ""}|${candidate.date || ""}|${candidate.holiday_id || ""}`
         }];

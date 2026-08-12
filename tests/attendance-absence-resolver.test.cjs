@@ -66,6 +66,36 @@ test("weekly off, roster leave, approved leave and closed holiday are never auto
   assert.deepEqual(closedHoliday, []);
 });
 
+test("a retained rejected-leave audit link does not suppress absence", () => {
+  const referenceAt = new Date(2026, 7, 7, 18, 0);
+  const rejected = resolver.buildCandidates({
+    rosters: [publishedRoster({
+      leave_days: [{
+        employee_id: "EMP-1",
+        date: "2026-08-07",
+        leave_request_id: "LR-1",
+        decision_status: "Rejected",
+        active: false
+      }]
+    })],
+    referenceAt
+  });
+  const approved = resolver.buildCandidates({
+    rosters: [publishedRoster({
+      leave_days: [{
+        employee_id: "EMP-1",
+        date: "2026-08-07",
+        leave_request_id: "LR-1",
+        decision_status: "Approved",
+        active: true
+      }]
+    })],
+    referenceAt
+  });
+  assert.equal(rejected.length, 1);
+  assert.equal(approved.length, 0);
+});
+
 test("existing attendance and inactive employees are not materialized again", () => {
   const referenceAt = new Date(2026, 7, 7, 18, 0);
   assert.deepEqual(resolver.buildCandidates({

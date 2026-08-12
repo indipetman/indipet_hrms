@@ -100,6 +100,8 @@ test("Leave entitlement rules contain the initial operational controls", () => {
   assert.match(html, /data-leave-policy-rule-field="max_carry_forward_days"/);
   assert.match(html, /data-leave-policy-rule-field="proof_required"/);
   assert.match(html, /Leave codes must be unique/);
+  assert.match(html, /function syncLeavePolicyRuleCodeValidation/);
+  assert.match(html, /data-leave-policy-rule-field="leave_code"[^>]+aria-describedby="leavePolicyCodeError\$\{index\}"/);
 });
 
 test("Leave Policy assignments are searchable and support Full Coverage", () => {
@@ -111,6 +113,22 @@ test("Leave Policy assignments are searchable and support Full Coverage", () => 
   assert.match(html, /Resolved Coverage Preview/);
 });
 
+test("Leave Policy assignments support gender-based inclusion and exclusion", () => {
+  assert.match(html, /recordLeavePolicyIncludeType[\s\S]*?<option value="GENDER">Gender<\/option>/);
+  assert.match(html, /recordLeavePolicyExcludeType[\s\S]*?<option value="GENDER">Gender<\/option>/);
+  assert.match(html, /type === "GENDER"[\s\S]*?\["Female", "Male", "Other"\]/);
+  assert.match(html, /genderValues: \[detail\.gender\]/);
+});
+
+test("matching Leave Policies combine entitlements instead of replacing Full Coverage", () => {
+  assert.match(html, /function resolveLeavePolicyMatchesForEmployee/);
+  assert.match(html, /function resolveLeaveRulesForEmployee/);
+  assert.match(html, /AttendancePolicyResolver\.resolveRuleSet/);
+  assert.match(html, /resolveLeaveRulesForEmployee\(row\)[\s\S]*?\.forEach\(\(\{ policy, rule \}\)/);
+  assert.match(html, /policy_ids: policyMatches\.map/);
+  assert.match(html, /syncLeavePolicyPage\(\);\s*reconcileLeaveLedgerEntries\(\);\s*const persistenceTarget = await persistHrmsReserve\(\)/);
+});
+
 test("Leave Policy persists policies, rules and assignments separately", () => {
   assert.match(server, /leave_policies:\s*\{/);
   assert.match(server, /leave_policy_rules:\s*\{/);
@@ -119,7 +137,16 @@ test("Leave Policy persists policies, rules and assignments separately", () => {
   assert.match(html, /leave_policies: leavePolicies\.map/);
   assert.match(html, /leave_policy_rules: leavePolicyRules\.map/);
   assert.match(html, /leave_policy_assignments: leavePolicyAssignments\.map/);
-  assert.match(html, /syncLeavePolicyPage\(\);\s*const persistenceTarget = await persistHrmsReserve/s);
+  assert.match(html, /syncLeavePolicyPage\(\);\s*reconcileLeaveLedgerEntries\(\);\s*const persistenceTarget = await persistHrmsReserve/s);
+});
+
+test("rejected Leave and Attendance Policy saves roll back and expose the Excel blocker", () => {
+  assert.match(html, /function hrmsPersistenceFailureDetail/);
+  assert.match(html, /HrmsRosterPersistence\.isDefinitiveValidationRejection/);
+  assert.match(html, /const leavePolicySaveSnapshot = JSON\.parse\(JSON\.stringify\(hrmsReserveSnapshot\(\)\)\)/);
+  assert.match(html, /restoreEmployeeSaveSnapshot\(leavePolicySaveSnapshot\)/);
+  assert.match(html, /Leave Policy was not saved\. \$\{hrmsPersistenceFailureDetail\(\)\}/);
+  assert.match(html, /Attendance Policy was not saved\. \$\{hrmsPersistenceFailureDetail\(\)\}/);
 });
 
 test("Leave Policy edit and delete operate on all dedicated records", () => {

@@ -159,6 +159,7 @@ test("Attendance Policy persists in dedicated mock database tables", () => {
 test("Attendance Policy is wired into punch and register recalculation", () => {
   const punchRule = html.slice(html.indexOf("function attendancePunchIssue"), html.indexOf("function syncAttendanceRecordModal"));
   assert.match(html, /function resolveAttendancePolicyForEmployee/);
+  assert.match(html, /tenantId: String\(detail\.tenant_id \|\| currentHrmsSession\(\)\?\.tenant_id \|\| primaryEntityRecord\(\)\?\.tenant_id \|\| ""\)/);
   assert.match(html, /AttendancePolicyResolver\.resolvePolicy/);
   assert.match(punchRule, /attendancePunchAssessment/);
   assert.match(html, /function recalculateAttendancePolicyDerivedRows/);
@@ -182,4 +183,15 @@ test("Attendance Register separates day status, timing incidents and automatic r
   assert.match(html, /function attendanceAutomaticDecisionState/);
   assert.match(html, /review_status: "AUTO_APPROVED"/);
   assert.match(html, /attendanceShiftHasClosed/);
+});
+
+test("resolved configuration repairs stale approved final status with an audit trail", () => {
+  assert.match(html, /AttendancePolicyResolver\.reconcileApprovedFinalStatus/);
+  assert.match(html, /status_reconciliation: statusReconciliation/);
+  assert.match(html, /action: "RECONCILED_APPROVED_FINAL_STATUS"/);
+  assert.match(html, /from_status: statusReconciliation\.previousStatus/);
+  assert.match(html, /to_status: statusReconciliation\.finalStatus/);
+  assert.match(html, /historical_status_reconciliation_reason: statusReconciliation\.changed/);
+  assert.match(html, /"ATTENDANCE_CONFIGURATION_RESOLVED"/);
+  assert.match(html, /\|\| statusReconciliation\.changed/);
 });

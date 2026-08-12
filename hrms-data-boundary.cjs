@@ -30,6 +30,7 @@
     "attendance_incident_counters",
     "attendance_penalty_transactions",
     "attendance_penalty_audit",
+    "in_app_notifications",
     "leave_policies",
     "leave_policy_rules",
     "leave_policy_assignments",

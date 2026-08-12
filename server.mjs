@@ -9,9 +9,11 @@ import HrmsModuleRowStore from "./hrms-module-row-store.cjs";
 import HrmsDeleteIntegrity from "./hrms-delete-integrity.cjs";
 import HrmsReferentialIntegrity from "./hrms-referential-integrity.cjs";
 import HrmsLeaveCapResolver from "./leave-cap-resolver.cjs";
+import HrmsLeavePolicyRuleValidator from "./leave-policy-rule-validator.cjs";
 import HrmsLossOfPayResolver from "./loss-of-pay-resolver.cjs";
 import HrmsAttendancePenaltyResolver from "./attendance-penalty-resolver.cjs";
 import HrmsErpConnectivity from "./hrms-erp-connectivity.cjs";
+import HrmsFinancialYearIntegrity from "./hrms-financial-year-integrity.cjs";
 import ProductionRuntime from "../production-runtime.cjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -37,12 +39,24 @@ async function readErpOrganizationSnapshot() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(`${ERP_CORE_ORIGIN}/api/erp-core/organization`, {
+    const ownershipResponse = await fetch(`${ERP_CORE_ORIGIN}/api/erp-core/ownership`, {
       cache: "no-store",
       signal: controller.signal
     });
-    if (!response.ok) throw new Error(`ERP Core organization check returned ${response.status}`);
-    const snapshot = await response.json();
+    if (ownershipResponse.ok) {
+      const snapshot = await ownershipResponse.json();
+      return snapshot && typeof snapshot === "object" ? snapshot : null;
+    }
+    if (ownershipResponse.status !== 404) {
+      throw new Error(`ERP Core ownership check returned ${ownershipResponse.status}`);
+    }
+
+    const legacyResponse = await fetch(`${ERP_CORE_ORIGIN}/api/erp-core/organization`, {
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!legacyResponse.ok) throw new Error(`ERP Core organization check returned ${legacyResponse.status}`);
+    const snapshot = await legacyResponse.json();
     return snapshot && typeof snapshot === "object" ? snapshot : null;
   } catch {
     return null;
@@ -61,8 +75,11 @@ async function validateErpOrganizationConnectivity(snapshot) {
   const organization = await readErpOrganizationSnapshot();
   const ownership = HrmsErpConnectivity.applyTenantOwnership(snapshot, organization);
   if (!ownership.ok) return ownership;
-  const validation = HrmsErpConnectivity.validateAgainstOrganization(ownership.snapshot, organization);
-  return validation.ok ? { ...validation, snapshot: ownership.snapshot, tenant_id: ownership.tenant_id } : validation;
+  const financialYearValidation = HrmsFinancialYearIntegrity.stampAndValidate(ownership.snapshot, organization);
+  if (!financialYearValidation.ok) return financialYearValidation;
+  const scopedSnapshot = financialYearValidation.snapshot || ownership.snapshot;
+  const validation = HrmsErpConnectivity.validateAgainstOrganization(scopedSnapshot, organization);
+  return validation.ok ? { ...validation, snapshot: scopedSnapshot, tenant_id: ownership.tenant_id } : validation;
 }
 
 const modulePageKey = record => String(record?.pageKey || record?.page_key || "").trim().toLowerCase();
@@ -159,7 +176,8 @@ const jsonFields = new Set([
   "permissions", "permission_matrix", "permission_codes",
   "assignments", "weekly_offs", "draft_weekly_offs", "weekly_off_allowances", "leave_days",
   "rotation_exceptions", "open_slots", "conflicts_list", "warnings_list", "comp_off_entries", "excluded", "history", "rules",
-  "qualifying_attendance_ids", "source_attendance_ids", "source_dates", "payload"
+  "qualifying_attendance_ids", "source_attendance_ids", "source_dates", "payload",
+  "scope_keys", "scope_labels"
 ]);
 const booleanFields = new Set([
   "gstRegistered", "keyholderEligible", "weekly_off_baseline_ready",
@@ -231,7 +249,7 @@ const tableConfig = {
   attendance: {
     key: "id",
     headers: [
-      "id", "employee_id", "name", "initials", "entity_id", "location_id", "location",
+      "id", "financial_year_id", "employee_id", "name", "initials", "entity_id", "location_id", "location",
       "work_date", "shift", "checkIn", "checkOut", "worked_minutes", "issue", "status", "source",
       "roster_id", "source_id", "leave_request_id", "policy_id"
     ]
@@ -239,7 +257,7 @@ const tableConfig = {
   attendance_policies: {
     key: "policy_id",
     headers: [
-      "policy_id", "entity_id", "policy_code", "policy_name", "status", "version",
+      "policy_id", "financial_year_id", "entity_id", "policy_code", "policy_name", "status", "version",
       "rules", "history", "created_at", "updated_at"
     ]
   },
@@ -261,7 +279,7 @@ const tableConfig = {
   attendance_incident_counters: {
     key: "counter_id",
     headers: [
-      "counter_id", "rule_id", "policy_id", "employee_id", "period_key", "incident_code",
+      "counter_id", "financial_year_id", "rule_id", "policy_id", "employee_id", "period_key", "incident_code",
       "occurrence_count", "consumed_count", "qualifying_attendance_ids", "status",
       "last_incident_date", "created_at", "updated_at"
     ]
@@ -269,7 +287,7 @@ const tableConfig = {
   attendance_penalty_transactions: {
     key: "transaction_id",
     headers: [
-      "transaction_id", "rule_id", "policy_id", "employee_id", "employee_name", "entity_id",
+      "transaction_id", "financial_year_id", "rule_id", "policy_id", "employee_id", "employee_name", "entity_id",
       "location_id", "period_key", "incident_code", "occurrence_threshold", "source_attendance_ids",
       "source_dates", "consequence_type", "leave_code", "units", "fallback_action", "workflow_status",
       "ledger_id", "reversal_reason", "reversed_at", "created_at", "updated_at"
@@ -281,10 +299,19 @@ const tableConfig = {
       "audit_id", "transaction_id", "rule_id", "employee_id", "action", "detail", "payload", "created_at"
     ]
   },
+  in_app_notifications: {
+    key: "notification_id",
+    headers: [
+      "notification_id", "source_type", "source_id", "recipient_type", "recipient_employee_id",
+      "employee_name", "entity_id", "location_id", "title", "message", "severity", "status",
+      "read_status", "action_page", "period_key", "incident_code", "occurrence_threshold",
+      "source_dates", "payload", "created_at", "updated_at", "read_at", "resolved_at"
+    ]
+  },
   leave_policies: {
     key: "policy_id",
     headers: [
-      "policy_id", "organization_id", "policy_code", "policy_name", "status", "version",
+      "policy_id", "financial_year_id", "organization_id", "policy_code", "policy_name", "status", "version",
       "history", "created_at", "updated_at"
     ]
   },
@@ -306,7 +333,7 @@ const tableConfig = {
   leave_ledger: {
     key: "ledger_id",
     headers: [
-      "ledger_id", "employee_id", "employee_name", "organization_id", "location_id", "location",
+      "ledger_id", "financial_year_id", "employee_id", "employee_name", "organization_id", "location_id", "location",
       "policy_id", "leave_code", "leave_name", "opening_balance", "accrued_days", "used_days",
       "adjusted_days", "pending_days", "available_days", "transaction_date", "as_of_date", "status",
       "source_type", "source_id", "holiday_id", "units", "pay_treatment", "workflow_status",
@@ -317,8 +344,8 @@ const tableConfig = {
   holiday_calendar: {
     key: "holiday_id",
     headers: [
-      "holiday_id", "organization_id", "holiday_date", "holiday_name", "holiday_type",
-      "scope_type", "scope_key", "scope_label", "store_closed", "co_eligible",
+      "holiday_id", "financial_year_id", "organization_id", "holiday_date", "holiday_name", "holiday_type",
+      "scope_type", "scope_key", "scope_label", "scope_keys", "scope_labels", "store_closed", "co_eligible",
       "calendar_year", "status", "created_at", "updated_at"
     ]
   },
@@ -339,7 +366,7 @@ const tableConfig = {
   rosters: {
     key: "roster_id",
     headers: [
-      "roster_id", "location_id", "period", "start_date", "end_date", "version", "status",
+      "roster_id", "financial_year_id", "location_id", "period", "start_date", "end_date", "version", "status",
       "filled", "open", "conflicts", "keyholder", "updated", "issue", "leave_handling", "assignments", "weekly_offs",
       "draft_weekly_offs", "weekly_off_allowances", "weekly_off_baseline_ready", "leave_days",
       "rotation_exceptions", "open_slots", "conflicts_list", "warnings_list", "override_reason",
@@ -353,7 +380,7 @@ const tableConfig = {
   module_rows: {
     key: "row_id",
     headers: [
-      "row_id", "pageKey", "role_id", "role_code", "role_name", "name", "module_scope", "scope",
+      "row_id", "financial_year_id", "pageKey", "role_id", "role_code", "role_name", "name", "module_scope", "scope",
       "entity_context", "data_scope", "location_rule", "permissions", "permission_matrix", "permission_codes",
       "users", "lastChanged", "last_changed", "status", "details", "cells"
     ]
@@ -443,9 +470,50 @@ const stripObsoleteEmployeeFields = record => {
   return normalized;
 };
 
+const normalizeHolidayCalendarRecord = record => {
+  const normalized = { ...record };
+  const legacyScopeKey = String(normalized.scope_key || "").trim();
+  const legacyScopeLabel = String(normalized.scope_label || "").trim();
+  const scopeKeys = Array.isArray(normalized.scope_keys)
+    ? normalized.scope_keys.map(value => String(value || "").trim()).filter(Boolean)
+    : [];
+  const scopeLabels = Array.isArray(normalized.scope_labels)
+    ? normalized.scope_labels.map(value => String(value || "").trim()).filter(Boolean)
+    : [];
+  if (!scopeKeys.length && legacyScopeKey) scopeKeys.push(legacyScopeKey);
+  if (!scopeLabels.length && legacyScopeLabel) scopeLabels.push(legacyScopeLabel);
+  if (!scopeKeys.length && String(normalized.scope_type || "").toUpperCase() === "FULL_COVERAGE") {
+    scopeKeys.push("FULL_COVERAGE");
+  }
+  if (!scopeLabels.length && scopeKeys.length === 1 && scopeKeys[0] === "FULL_COVERAGE") {
+    scopeLabels.push("Full Coverage");
+  }
+  const normalizedScopeKeys = [];
+  const normalizedScopeLabels = [];
+  const seenScopeKeys = new Set();
+  scopeKeys.forEach((key, index) => {
+    if (seenScopeKeys.has(key)) return;
+    seenScopeKeys.add(key);
+    normalizedScopeKeys.push(key);
+    normalizedScopeLabels.push(scopeLabels[index] || key);
+  });
+  if (String(normalized.scope_type || "").toUpperCase() === "FULL_COVERAGE") {
+    normalized.scope_keys = ["FULL_COVERAGE"];
+    normalized.scope_labels = ["Full Coverage"];
+  } else {
+    normalized.scope_keys = normalizedScopeKeys;
+    normalized.scope_labels = normalizedScopeLabels;
+  }
+  normalized.scope_key = normalized.scope_keys[0] || legacyScopeKey;
+  normalized.scope_label = normalized.scope_labels[0] || legacyScopeLabel;
+  return normalized;
+};
+
 const normalizeTableRecord = (tableName, record) => {
   const normalized = normalizeRecord(record);
-  return tableName === "employees" ? stripObsoleteEmployeeFields(normalized) : normalized;
+  if (tableName === "employees") return stripObsoleteEmployeeFields(normalized);
+  if (tableName === "holiday_calendar") return normalizeHolidayCalendarRecord(normalized);
+  return normalized;
 };
 
 const migrateHrmsTenantRecord = (tableName, record) => {
@@ -482,13 +550,21 @@ const ensureWorkbook = () => {
   const workbook = workbookExists
     ? XLSX.readFile(dbPath, { cellDates: false })
     : XLSX.utils.book_new();
+  const holidayCalendarHeaderRow = workbook.Sheets.holiday_calendar
+    ? XLSX.utils.sheet_to_json(workbook.Sheets.holiday_calendar, { header: 1, defval: "" })[0] || []
+    : [];
+  const holidayScopeHeaders = new Set(["scope_keys", "scope_labels"]);
+  const needsHolidayScopeMigration = workbookExists
+    && Boolean(workbook.Sheets.holiday_calendar)
+    && [...holidayScopeHeaders].some(header => !holidayCalendarHeaderRow.includes(header));
   const tenantOwnershipMigrationTables = new Set(workbookExists
     ? Object.entries(tableConfig)
       .filter(([tableName, config]) => {
         const sheet = workbook.Sheets[tableName];
         if (!sheet) return false;
         const headers = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })[0] || [];
-        return config.headers.some(header => !headers.includes(header));
+        return config.headers.some(header => !headers.includes(header)
+          && !(tableName === "holiday_calendar" && holidayScopeHeaders.has(header)));
       })
       .map(([tableName]) => tableName)
     : []);
@@ -500,6 +576,7 @@ const ensureWorkbook = () => {
     && Boolean(workbook.Sheets.leave_ledger)
     && tableConfig.leave_ledger.headers.some(header => !leaveLedgerHeaderRow.includes(header));
   const needsShiftPolicyMigration = workbookExists && !workbook.Sheets.shift_policies;
+  const needsInAppNotificationsMigration = workbookExists && !workbook.Sheets.in_app_notifications;
   const attendanceHeaderRow = workbook.Sheets.attendance
     ? XLSX.utils.sheet_to_json(workbook.Sheets.attendance, { header: 1, defval: "" })[0] || []
     : [];
@@ -648,6 +725,11 @@ const ensureWorkbook = () => {
     const backupPath = path.join(path.dirname(dbPath), `hrms_mock_database.pre-tenant-ownership-${backupStamp}.xlsx`);
     fs.copyFileSync(dbPath, backupPath);
   }
+  if (needsInAppNotificationsMigration) {
+    const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupPath = path.join(path.dirname(dbPath), `hrms_mock_database.pre-in-app-notifications-${backupStamp}.xlsx`);
+    fs.copyFileSync(dbPath, backupPath);
+  }
   if (needsShiftPolicyMigration) {
     const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
     const backupPath = path.join(dbDir, `hrms_mock_database.pre-shift-policies-${backupStamp}.xlsx`);
@@ -677,6 +759,11 @@ const ensureWorkbook = () => {
   if (needsEmployeeStructuredMigration) {
     const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
     const backupPath = path.join(dbDir, `hrms_mock_database.pre-document-center-finance-benefits-${backupStamp}.xlsx`);
+    fs.copyFileSync(dbPath, backupPath);
+  }
+  if (needsHolidayScopeMigration) {
+    const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupPath = path.join(path.dirname(dbPath), `hrms_mock_database.pre-holiday-multi-scope-${backupStamp}.xlsx`);
     fs.copyFileSync(dbPath, backupPath);
   }
   const legacyCoRows = needsLeaveLedgerMigration && workbook.Sheets.module_rows
@@ -722,11 +809,13 @@ const ensureWorkbook = () => {
       if ((tableName === "leave_ledger" && needsLeaveLedgerColumnMigration)
         || (tableName === "attendance" && needsAttendanceColumnMigration)
         || (tableName === "rosters" && needsRosterColumnMigration)
+        || (tableName === "holiday_calendar" && needsHolidayScopeMigration)
         || tenantOwnershipMigrationTables.has(tableName)
         || (tableName === "employees" && needsEmployeeProfileCleanup)
         || (tableName === "employee_family_members" && needsEmployeeFamilyMigration)
         || (employeeStructuredTableNames.includes(tableName) && needsEmployeeStructuredMigration)) {
-        const existingRows = XLSX.utils.sheet_to_json(workbook.Sheets[tableName], { defval: "" }).map(normalizeRecord);
+        const existingRows = XLSX.utils.sheet_to_json(workbook.Sheets[tableName], { defval: "" })
+          .map(record => normalizeTableRecord(tableName, record));
         const migratedRows = tableName === "employee_family_members"
           ? migratedEmployeeFamilyRows
           : employeeStructuredTableNames.includes(tableName)
@@ -852,6 +941,21 @@ const writeAllTables = data => {
   return counts;
 };
 
+const migrateHrmsFinancialYearScope = async () => {
+  if (!REQUIRE_ERP_CORE) return { ok: true, changed: false, skipped: true };
+  const organization = await readErpOrganizationSnapshot();
+  if (!organization) return { ok: false, changed: false, deferred: true };
+  const current = readAllTables();
+  const result = HrmsFinancialYearIntegrity.stampAndValidate(current, organization);
+  if (!result.ok) return result;
+  if (!result.changed) return result;
+  const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = path.join(path.dirname(dbPath), `hrms_mock_database.pre-financial-year-scope-${backupStamp}.xlsx`);
+  fs.copyFileSync(dbPath, backupPath);
+  writeAllTables(result.snapshot);
+  return { ...result, backup: backupPath };
+};
+
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
     "Content-Type": "application/json",
@@ -909,6 +1013,10 @@ const saveEmployeeDocumentUpload = payload => {
 };
 
 ensureWorkbook();
+const financialYearMigration = await migrateHrmsFinancialYearScope();
+if (!financialYearMigration.ok) {
+  console.warn(`HRMS Financial Year migration deferred: ${financialYearMigration.error || "ERP Core is unavailable."}`);
+}
 
 if (process.argv.includes("--init")) {
   console.log(`Mock Excel database ready: ${dbPath}`);
@@ -971,6 +1079,12 @@ http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/hrms-location-scope.cjs") {
+      response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
+      response.end(fs.readFileSync(path.join(__dirname, "hrms-location-scope.cjs"), "utf8"));
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/attendance-policy-resolver.cjs") {
       response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
       response.end(fs.readFileSync(path.join(__dirname, "attendance-policy-resolver.cjs"), "utf8"));
@@ -1007,6 +1121,12 @@ http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/weekly-off-holiday-resolver.cjs") {
+      response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
+      response.end(fs.readFileSync(path.join(__dirname, "weekly-off-holiday-resolver.cjs"), "utf8"));
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/loss-of-pay-resolver.cjs") {
       response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
       response.end(fs.readFileSync(path.join(__dirname, "loss-of-pay-resolver.cjs"), "utf8"));
@@ -1016,6 +1136,12 @@ http.createServer(async (request, response) => {
     if (request.method === "GET" && url.pathname === "/leave-cap-resolver.cjs") {
       response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
       response.end(fs.readFileSync(path.join(__dirname, "leave-cap-resolver.cjs"), "utf8"));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/leave-policy-rule-validator.cjs") {
+      response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
+      response.end(fs.readFileSync(path.join(__dirname, "leave-policy-rule-validator.cjs"), "utf8"));
       return;
     }
 
@@ -1114,6 +1240,14 @@ http.createServer(async (request, response) => {
             error: referenceValidation.error,
             blockers: referenceValidation.blockers,
             table: referenceValidation.table
+          });
+        }
+        const leaveCodeValidation = HrmsLeavePolicyRuleValidator.validateUniqueLeaveCodes(nextSnapshot);
+        if (!leaveCodeValidation.ok) {
+          return sendJson(response, 409, {
+            error: leaveCodeValidation.error,
+            blockers: leaveCodeValidation.blockers,
+            table: leaveCodeValidation.table
           });
         }
         const erpConnectivityValidation = await validateErpOrganizationConnectivity(nextSnapshot);
@@ -1253,6 +1387,14 @@ http.createServer(async (request, response) => {
             error: referenceValidation.error,
             blockers: referenceValidation.blockers,
             table: referenceValidation.table
+          });
+        }
+        const leaveCodeValidation = HrmsLeavePolicyRuleValidator.validateUniqueLeaveCodes(nextSnapshot);
+        if (!leaveCodeValidation.ok) {
+          return sendJson(response, 409, {
+            error: leaveCodeValidation.error,
+            blockers: leaveCodeValidation.blockers,
+            table: leaveCodeValidation.table
           });
         }
         const erpConnectivityValidation = await validateErpOrganizationConnectivity(nextSnapshot);

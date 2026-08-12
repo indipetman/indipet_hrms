@@ -58,7 +58,12 @@
       .sort((left, right) => (Date.parse(left.updated_at || left.updated || "") || 0) - (Date.parse(right.updated_at || right.updated || "") || 0))
       .forEach(roster => {
         const weeklyOffKeys = new Set((roster.weekly_offs || []).map(item => `${item.employee_id}|${item.date}`));
-        const leaveKeys = new Set((roster.leave_days || []).map(item => `${item.employee_id}|${item.date}`));
+        const leaveKeys = new Set((roster.leave_days || [])
+          .filter(item => {
+            const decisionStatus = text(item.decision_status || item.status).toUpperCase();
+            return item.active !== false && (!decisionStatus || decisionStatus === "APPROVED");
+          })
+          .map(item => `${item.employee_id}|${item.date}`));
         (roster.assignments || []).forEach(assignment => {
           if (text(assignment.status || "Assigned").toLowerCase() !== "assigned") return;
           const employeeId = text(assignment.employee_id);

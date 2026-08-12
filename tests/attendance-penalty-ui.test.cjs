@@ -42,7 +42,8 @@ test("penalty tables are Excel-owned, serialized and reloaded", () => {
     "attendance_penalty_rules",
     "attendance_incident_counters",
     "attendance_penalty_transactions",
-    "attendance_penalty_audit"
+    "attendance_penalty_audit",
+    "in_app_notifications"
   ]) {
     assert.match(server, new RegExp(`${table}: \\{`));
     assert.match(boundary, new RegExp(`"${table}"`));
@@ -55,10 +56,31 @@ test("penalty tables are Excel-owned, serialized and reloaded", () => {
   assert.match(html, /function attendancePenaltySnapshot\(\)[\s\S]*attendance_penalty_rules: attendancePenaltyRules\.map/);
 });
 
+test("Warning Only is rendered in the scoped notification drawer and read state is Excel-backed", () => {
+  assert.match(html, /id="notificationDrawerBody"/);
+  assert.match(html, /function scopedInAppNotifications/);
+  assert.match(html, /recipient_employee_id/);
+  assert.match(html, /function renderNotificationDrawer/);
+  assert.match(html, /data-notification-read/);
+  assert.match(html, /async function markInAppNotificationRead/);
+  assert.match(html, /await persistHrmsReserve\(\)/);
+  assert.match(html, /in_app_notifications: inAppNotifications\.map/);
+  assert.match(html, /notification-dot" hidden/);
+});
+
+test("Attendance Policy consequence controls remain readable and balanced", () => {
+  assert.match(html, /\.attendance-penalty-consequence-field\s*\{[\s\S]*?grid-column:\s*span 2/);
+  assert.match(html, /\.attendance-penalty-consequence-field\.is-wide,[\s\S]*?\.attendance-penalty-balance-field\s*\{[\s\S]*?grid-column:\s*span 3/);
+  assert.match(html, /class="field attendance-penalty-consequence-field \$\{needsQuantity \? "" : "is-wide"\}"/);
+  assert.match(html, /rule\.consequence_type === "WARNING" \? '<div class="field-help">Creates one Excel-backed notification/);
+  assert.doesNotMatch(html, /rule\.consequence_type === "WARNING" \? '<div class="field full"><div class="field-help">/);
+  assert.match(html, /@media \(max-width: 600px\)[\s\S]*?\.attendance-penalty-consequence-field[\s\S]*?grid-column:\s*1 \/ -1/);
+});
+
 test("Attendance Policy save requires Excel acknowledgement and restores the previous state on failure", () => {
   assert.match(html, /const attendanceSaveSnapshot = JSON\.parse\(JSON\.stringify\(hrmsReserveSnapshot\(\)\)\)/);
   assert.match(html, /if \(persistenceTarget !== "excel"\) \{\s*restoreEmployeeSaveSnapshot\(attendanceSaveSnapshot\)/s);
-  assert.match(html, /Attendance Policy was not saved to the Excel database\. Your previous data was restored/);
+  assert.match(html, /Attendance Policy was not saved\. \$\{hrmsPersistenceFailureDetail\(\)\} Your previous data was restored/);
 });
 
 test("penalty-derived leave deductions and LOP are reconciled into the existing ledgers", () => {

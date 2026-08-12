@@ -31,3 +31,17 @@ test("Attendence Register cards drive the status filter without renaming the per
   assert.match(html, /data-attendance-summary-filter=/);
   assert.ok(html.includes('$("#moduleStatus").value = attendanceSummaryButton.dataset.attendanceSummaryFilter || "all";'));
 });
+
+test("wide module tables retain their horizontal position across actions and rerenders", () => {
+  assert.match(html, /const moduleTableHorizontalState = new Map\(\)/);
+  assert.match(html, /function prepareModuleTableHorizontalState\(pageKey = ""\)/);
+  assert.match(html, /moduleTableHorizontalState\.set\(renderedPage, tableWrap\.scrollLeft\)/);
+  assert.match(html, /tableWrap\.onscroll = null/);
+  assert.match(html, /const savedTableScrollLeft = prepareModuleTableHorizontalState\(pageKey\)/);
+  assert.match(html, /tableWrap\.dataset\.moduleTablePage = pageKey/);
+  assert.match(html, /tableWrap\.dataset\.moduleTablePage !== pageKey/);
+  assert.match(html, /Math\.max\(0, tableWrap\.scrollWidth - tableWrap\.clientWidth\)/);
+  assert.match(html, /tableWrap\.scrollLeft = nextLeft/);
+  assert.match(html, /requestAnimationFrame\(restore\)/);
+  assert.match(html, /restoreModuleTableHorizontalState\(pageKey, savedTableScrollLeft\)/);
+});

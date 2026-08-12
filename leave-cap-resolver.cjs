@@ -194,20 +194,35 @@
     return maximum;
   }
 
+  function approvedLeaveCapDeferrals(snapshot = {}) {
+    return approvedEvents(snapshot)
+      .filter(event => event.location_id && !event.shift_id)
+      .map(event => ({
+        type: "Daily Leave Limit",
+        status: "Deferred Until Roster",
+        request_id: event.request_id,
+        employee_id: event.employee_id,
+        date: event.date,
+        location_id: event.location_id,
+        shift_id: "",
+        detail: `${event.employee_name || event.employee_id} has no rostered or default shift on ${event.date}; the shift/day leave-cap check is deferred until roster planning.`
+      }));
+  }
+
   function approvedLeaveCapViolations(snapshot = {}) {
     const events = approvedEvents(snapshot);
     const blockers = [];
-    events.filter(event => !event.shift_id || !event.location_id || event.cap === null).forEach(event => {
+    events.filter(event => !event.location_id || (event.shift_id && event.cap === null)).forEach(event => {
       blockers.push({
         type: "Daily Leave Limit",
-        status: "Pending Review",
+        status: "Blocked",
         request_id: event.request_id,
         employee_id: event.employee_id,
         date: event.date,
         location_id: event.location_id,
         shift_id: event.shift_id,
-        detail: !event.shift_id
-          ? `${event.employee_name || event.employee_id} has no rostered or default shift on ${event.date}; leave cannot be auto-approved.`
+        detail: !event.location_id
+          ? `${event.employee_name || event.employee_id} has no assigned location on ${event.date}; leave approval cannot resolve its operating scope.`
           : `No active Excel-backed shift policy could resolve the leave limit for ${event.date}.`
       });
     });
@@ -240,9 +255,10 @@
 
   function validateApprovedLeaveCaps(snapshot = {}) {
     const blockers = approvedLeaveCapViolations(snapshot);
+    const deferred = approvedLeaveCapDeferrals(snapshot);
     return blockers.length
-      ? { ok: false, error: "Approved leave exceeds or cannot resolve the Excel-backed shift/day leave limit.", blockers, table: "module_rows" }
-      : { ok: true, blockers: [] };
+      ? { ok: false, error: "Approved leave exceeds or cannot resolve the Excel-backed shift/day leave limit.", blockers, deferred, table: "module_rows" }
+      : { ok: true, blockers: [], deferred };
   }
 
   function evaluateApproval(snapshot = {}, candidate = {}) {
@@ -273,6 +289,7 @@
     activePolicy,
     approvedEvents,
     maximumConcurrent,
+    approvedLeaveCapDeferrals,
     approvedLeaveCapViolations,
     validateApprovedLeaveCaps,
     evaluateApproval
